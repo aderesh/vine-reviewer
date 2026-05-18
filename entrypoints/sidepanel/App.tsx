@@ -310,13 +310,9 @@ export default function App() {
 
       setStage({ type: 'form', product });
 
-      // Skip fetches if restored from draft
-      if (!draft || draft.asin !== target.asin || !(draft.characteristics?.length > 0)) {
-        loadCharacteristics(target.asin, target.locale);
-      }
-      if (!draft || draft.asin !== target.asin || !(draft.questions?.length > 0)) {
-        loadQuestions(product);
-      }
+      const hasDraft = draft?.asin === target.asin;
+      if (!hasDraft || !draft?.characteristics?.length) loadCharacteristics(target.asin, target.locale);
+      if (!hasDraft || !draft?.questions?.length) loadQuestions(product);
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
     }
@@ -440,9 +436,57 @@ export default function App() {
     }
   }
 
+  async function navigateTab(url: string) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) chrome.tabs.update(tab.id, { url });
+  }
+
   const wordCount = reviewBody.trim().split(/\s+/).filter(Boolean).length;
   const hasReview = reviewTitle.length > 0 || reviewBody.length > 0;
   const canPopulate = fillTabId !== null && hasReview;
+
+  const positive = characteristics.filter((c) => c.sentiment === 'positive');
+  const negative = characteristics.filter((c) => c.sentiment === 'negative');
+  const renderChar = (c: ReviewCharacteristic) => {
+    const on = checkedChars.has(c.text);
+    return (
+      <div key={c.text} className="char-item-wrap">
+        <label className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}>
+          <input
+            type="checkbox"
+            checked={on}
+            onChange={(e) =>
+              setCheckedChars((prev) => {
+                const next = new Set(prev);
+                e.target.checked ? next.add(c.text) : next.delete(c.text);
+                return next;
+              })
+            }
+          />
+          <span className="char-text">{c.text}</span>
+          <span className="char-badge">x{c.count}</span>
+        </label>
+        {c.sources.length > 0 && (
+          <details className="char-sources" open>
+            <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
+            {c.sources.map((s, i) => (
+              <div key={i} className="char-source">
+                <span className="char-source-text">"{s.excerpt}"</span>
+                <button
+                  className="char-source-add"
+                  title="Add to your notes"
+                  onClick={() => setUserNotes((prev) =>
+                    prev ? `${prev}\n${s.excerpt}` : s.excerpt
+                  )}
+                >+</button>
+                {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
+              </div>
+            ))}
+          </details>
+        )}
+      </div>
+    );
+  };
 
   // ------------------------------------------------------------------
   // Render
@@ -453,12 +497,7 @@ export default function App() {
         <span className="header-title">🍇 Vine Reviewer</span>
         <button
           className="link-btn"
-          onClick={async () => {
-            const locale = currentProduct?.locale ?? 'amazon.ca';
-            const url = `https://www.${locale}/vine/vine-reviews`;
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tab?.id) chrome.tabs.update(tab.id, { url });
-          }}
+          onClick={() => navigateTab(`https://www.${currentProduct?.locale ?? 'amazon.ca'}/vine/vine-reviews`)}
           title="Go to Vine orders"
         >
           My orders
@@ -512,11 +551,7 @@ export default function App() {
               )}
               <button
                 className="link-btn product-page-link"
-                onClick={async () => {
-                  const url = `https://www.${stage.product.locale}/dp/${stage.product.asin}`;
-                  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-                  if (tab?.id) chrome.tabs.update(tab.id, { url });
-                }}
+                onClick={() => navigateTab(`https://www.${stage.product.locale}/dp/${stage.product.asin}`)}
               >
                 View product page ↗
               </button>
@@ -552,66 +587,22 @@ export default function App() {
               {charsStatus === 'done' && characteristics.length === 0 && (
                 <p className="muted">No existing reviews found.</p>
               )}
-              {characteristics.length > 0 && (() => {
-                const positive = characteristics.filter((c) => c.sentiment === 'positive');
-                const negative = characteristics.filter((c) => c.sentiment === 'negative');
-                const renderChar = (c: ReviewCharacteristic) => {
-                  const on = checkedChars.has(c.text);
-                  return (
-                    <div key={c.text} className="char-item-wrap">
-                      <label className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}>
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={(e) =>
-                            setCheckedChars((prev) => {
-                              const next = new Set(prev);
-                              e.target.checked ? next.add(c.text) : next.delete(c.text);
-                              return next;
-                            })
-                          }
-                        />
-                        <span className="char-text">{c.text}</span>
-                          <span className="char-badge">x{c.count}</span>
-                      </label>
-                      {c.sources.length > 0 && (
-                        <details className="char-sources" open>
-                          <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
-                          {c.sources.map((s, i) => (
-                            <div key={i} className="char-source">
-                              <span className="char-source-text">"{s.excerpt}"</span>
-                              <button
-                                className="char-source-add"
-                                title="Add to your notes"
-                                onClick={() => setUserNotes((prev) =>
-                                  prev ? `${prev}\n${s.excerpt}` : s.excerpt
-                                )}
-                              >+</button>
-                              {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
-                            </div>
-                          ))}
-                        </details>
-                      )}
-                    </div>
-                  );
-                };
-                return (
-                  <div className="char-list">
-                    {positive.length > 0 && (
-                      <>
-                        <div className="char-group-label char-group-positive">Positives</div>
-                        {positive.map(renderChar)}
-                      </>
-                    )}
-                    {negative.length > 0 && (
-                      <>
-                        <div className="char-group-label char-group-negative">Negatives</div>
-                        {negative.map(renderChar)}
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
+              {characteristics.length > 0 && (
+                <div className="char-list">
+                  {positive.length > 0 && (
+                    <>
+                      <div className="char-group-label char-group-positive">Positives</div>
+                      {positive.map(renderChar)}
+                    </>
+                  )}
+                  {negative.length > 0 && (
+                    <>
+                      <div className="char-group-label char-group-negative">Negatives</div>
+                      {negative.map(renderChar)}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Review guidance questions */}
