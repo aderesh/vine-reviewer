@@ -341,8 +341,10 @@ export default function App() {
     setCheckedChars(new Set());
     setCharacteristics([]);
     setCharsStatus('idle');
+    setCharsError('');
     setQuestions([]);
     setQuestionsStatus('idle');
+    setQuestionsError('');
     setGenerateError('');
     if (currentProduct) {
       await storage.removeItem('local:draft');

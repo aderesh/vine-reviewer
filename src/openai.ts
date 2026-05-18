@@ -42,6 +42,49 @@ function buildPrompt(
 }
 
 // ---------------------------------------------------------------------------
+// Internal API helper
+// ---------------------------------------------------------------------------
+
+interface AiCallOptions {
+  messages: Array<{ role: string; content: string }>;
+  temperature: number;
+  maxTokens: number;
+  jsonMode?: boolean;
+}
+
+async function callAiApi(
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  options: AiCallOptions,
+): Promise<string> {
+  const base = endpoint.replace(/\/$/, '');
+  const body: Record<string, unknown> = {
+    model,
+    messages: options.messages,
+    temperature: options.temperature,
+    max_tokens: options.maxTokens,
+  };
+  if (options.jsonMode) body.response_format = { type: 'json_object' };
+
+  const response = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) throw new Error('Rate limit reached (429). Wait a moment and try again.');
+    const err = await response.json().catch(() => ({})) as { error?: { message?: string } };
+    throw new Error(`AI API error ${response.status}: ${err?.error?.message ?? response.statusText}`);
+  }
+
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
+  return content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+}
+
+// ---------------------------------------------------------------------------
 // API call
 // ---------------------------------------------------------------------------
 
@@ -59,9 +102,6 @@ export async function generateReview(
     );
   }
 
-  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
-  const model = settings.openaiModel;
-
   const userPrompt = buildPrompt(
     settings.reviewPromptTemplate,
     product,
@@ -70,44 +110,21 @@ export async function generateReview(
     checkedCharacteristics,
   );
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${settings.openaiApiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: settings.systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 900,
-      // Force JSON output on providers that support it (Groq, OpenAI).
-      // Gemini's OpenAI-compat layer ignores unknown fields, so safe to always send.
-      response_format: { type: 'json_object' },
-    }),
+  // Force JSON output on providers that support it (Groq, OpenAI).
+  // Gemini's OpenAI-compat layer ignores unknown fields, so safe to always send.
+  const jsonStr = await callAiApi(settings.apiEndpoint, settings.openaiApiKey, settings.openaiModel, {
+    messages: [
+      { role: 'system', content: settings.systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.7,
+    maxTokens: 900,
+    jsonMode: true,
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({})) as { error?: { message?: string } };
-    throw new Error(
-      `OpenAI API error ${response.status}: ${err?.error?.message ?? response.statusText}`,
-    );
+  if (!jsonStr) {
+    throw new Error('Empty AI response. Try regenerating.');
   }
-
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content?.trim();
-
-  if (!content) {
-    throw new Error('Empty response from OpenAI. Try regenerating.');
-  }
-
-  // Strip markdown code fences if the model wrapped the JSON
-  const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
 
   const tryParse = (s: string): { title: string; body: string } | null => {
     try {
@@ -226,8 +243,6 @@ export async function extractCharacteristics(
   const settings = await getSettings();
   if (!settings.openaiApiKey) return [];
 
-  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
-  const model = settings.openaiModel;
   const limit = settings.reviewCount;
 
   const posSlice = positiveReviews.slice(0, limit);
@@ -252,31 +267,14 @@ Return ONLY a JSON array of up to ${settings.characteristicsCount} characteristi
 Each item: {"text":"concise 3-7 word phrase, lowercase","sentiment":"positive" or "negative","count":N,"sources":[{"list":"positive" or "critical","index":0-based review index,"sentence":"the exact sentence(s) from that review proving this characteristic"}]}
 Deduplicate similar ideas. "count" is how many of the provided reviews mention this characteristic. Include one source entry per supporting review.`;
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.openaiApiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: 'You extract product characteristics from reviews. Respond only with valid JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 2000,
-    }),
+  const jsonStr = await callAiApi(settings.apiEndpoint, settings.openaiApiKey, settings.openaiModel, {
+    messages: [
+      { role: 'system', content: 'You extract product characteristics from reviews. Respond only with valid JSON.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.3,
+    maxTokens: 2000,
   });
-
-  if (!response.ok) {
-    const msg = response.status === 429
-      ? 'Rate limit reached (429). Wait a moment and click ↺ Reload.'
-      : `AI API error ${response.status}: ${response.statusText}`;
-    throw new Error(msg);
-  }
-
-  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
-
-  const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = parseJsonArray(jsonStr) as Array<{
     text?: string; sentiment?: string; count?: number;
     sources?: Array<{ list?: string; index?: number; sentence?: string }>;
@@ -313,8 +311,6 @@ export async function generateReviewQuestions(product: ProductInfo): Promise<str
   const settings = await getSettings();
   if (!settings.openaiApiKey) return [];
 
-  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
-
   const featuresLine = product.features.slice(0, 6).join('; ');
   const descLine = product.description ? product.description.slice(0, 400) : '';
 
@@ -323,31 +319,15 @@ export async function generateReviewQuestions(product: ProductInfo): Promise<str
     .replace('{features}', featuresLine ? `Features: ${featuresLine}` : '')
     .replace('{description}', descLine ? `Description: ${descLine}` : '');
 
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.openaiApiKey}` },
-    body: JSON.stringify({
-      model: settings.openaiModel,
-      messages: [
-        { role: 'system', content: 'You help reviewers write thorough product reviews. Respond only with valid JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 400,
-      response_format: { type: 'json_object' },
-    }),
+  const jsonStr = await callAiApi(settings.apiEndpoint, settings.openaiApiKey, settings.openaiModel, {
+    messages: [
+      { role: 'system', content: 'You help reviewers write thorough product reviews. Respond only with valid JSON.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.4,
+    maxTokens: 400,
+    jsonMode: true,
   });
-
-  if (!response.ok) {
-    const msg = response.status === 429
-      ? 'Rate limit reached (429). Wait a moment and try again.'
-      : `AI API error ${response.status}: ${response.statusText}`;
-    throw new Error(msg);
-  }
-
-  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
-  const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as { questions?: unknown };
   const arr = Array.isArray(parsed) ? parsed : (parsed.questions ?? Object.values(parsed)[0]);
   if (!Array.isArray(arr)) return [];

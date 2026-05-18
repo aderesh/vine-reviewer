@@ -1,6 +1,6 @@
 import { fetchProductHtml, fetchReviewsHtml } from '../src/scraper';
 import { generateReview } from '../src/openai';
-import { setReviewTarget } from '../src/storage';
+import { setReviewTarget, SETTINGS_KEY } from '../src/storage';
 import type { AppMessage } from '../src/types';
 
 export default defineBackground(() => {
@@ -105,7 +105,6 @@ async function handleMessage(
 // Safe to re-run: skips if the placeholder is already present.
 // ---------------------------------------------------------------------------
 async function migrateSettings() {
-  const SETTINGS_KEY = 'local:settings';
   const CHARS_PLACEHOLDER = '{characteristics}';
   const CHARS_SECTION =
     '\n\nCharacteristics I agree with from other buyer reviews ' +

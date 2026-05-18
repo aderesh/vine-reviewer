@@ -4,7 +4,7 @@ import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT, DEFAULT_QUESTIONS_PROMPT 
 
 // Storage keys (wxt/storage uses "scope:key" format)
 const REVIEW_TARGET_KEY = 'local:reviewTarget';
-const SETTINGS_KEY = 'local:settings';
+export const SETTINGS_KEY = 'local:settings';
 
 export const DEFAULT_SETTINGS: Settings = {
   apiEndpoint: 'https://api.groq.com/openai/v1',
