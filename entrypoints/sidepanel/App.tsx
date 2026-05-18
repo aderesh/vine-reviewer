@@ -414,6 +414,18 @@ export default function App() {
         <span className="header-title">🍇 Vine Reviewer</span>
         <button
           className="link-btn"
+          onClick={async () => {
+            const locale = currentProduct?.locale ?? 'amazon.ca';
+            const url = `https://www.${locale}/vine/vine-reviews`;
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tab?.id) chrome.tabs.update(tab.id, { url });
+          }}
+          title="Go to Vine orders"
+        >
+          My orders
+        </button>
+        <button
+          className="link-btn"
           onClick={() => chrome.runtime.openOptionsPage()}
           title="Open settings"
         >
