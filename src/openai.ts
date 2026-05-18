@@ -290,7 +290,7 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
       sources: (c.sources ?? [])
         .filter((s) => s.sentence && typeof s.index === 'number')
         .map((s) => {
-          const pool = s.list === 'critical' ? critSlice : posSlice;
+          const pool = s.list === 'positive' ? posSlice : critSlice;
           return {
             excerpt: s.sentence!,
             url: (s.index! >= 0 && s.index! < pool.length) ? pool[s.index!].url : null,

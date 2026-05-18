@@ -138,7 +138,13 @@ export function parseReviewTexts(html: string, locale: string): { text: string; 
   for (const container of doc.querySelectorAll('[data-hook="review"]')) {
     const text = container.querySelector('[data-hook="review-body"] span')?.textContent?.trim() ?? '';
     if (text.length <= 30) continue;
-    const path = container.querySelector('a[data-hook="review-title"]')?.getAttribute('href') ?? null;
+    const reviewId = container.getAttribute('id')?.match(/customer_review_([A-Z0-9]+)/i)?.[1] ?? null;
+    const path = reviewId ? `/gp/customer-reviews/${reviewId}` : (
+      container.querySelector<HTMLAnchorElement>('a[data-hook="review-title"]')?.getAttribute('href') ??
+      container.querySelector<HTMLAnchorElement>('[data-hook="review-title"] a')?.getAttribute('href') ??
+      container.querySelector<HTMLAnchorElement>('a[href*="customer-reviews"]')?.getAttribute('href') ??
+      null
+    );
     results.push({ text, url: path ? `https://www.${locale}${path}` : null });
     if (results.length >= 10) break;
   }
