@@ -394,6 +394,16 @@ export default function App() {
                     ` · ${stage.product.reviewCount.toLocaleString()} reviews`}
                 </div>
               )}
+              <button
+                className="link-btn product-page-link"
+                onClick={async () => {
+                  const url = `https://www.${stage.product.locale}/dp/${stage.product.asin}`;
+                  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                  if (tab?.id) chrome.tabs.update(tab.id, { url });
+                }}
+              >
+                View product page ↗
+              </button>
               {stage.product.features.length > 0 && (
                 <details className="features-details">
                   <summary>Product features</summary>
