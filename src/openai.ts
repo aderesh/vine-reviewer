@@ -191,8 +191,8 @@ function escapeNewlinesInStrings(s: string): string {
  * Can be called directly from the side panel (no background message needed).
  */
 export async function extractCharacteristics(
-  positiveTexts: string[],
-  criticalTexts: string[],
+  positiveReviews: { text: string; url: string | null }[],
+  criticalReviews: { text: string; url: string | null }[],
 ): Promise<ReviewCharacteristic[]> {
   const settings = await getSettings();
   if (!settings.openaiApiKey) return [];
@@ -201,14 +201,14 @@ export async function extractCharacteristics(
   const model = settings.openaiModel;
   const limit = settings.reviewCount;
 
-  const posSlice = positiveTexts.slice(0, limit);
-  const critSlice = criticalTexts.slice(0, limit);
+  const posSlice = positiveReviews.slice(0, limit);
+  const critSlice = criticalReviews.slice(0, limit);
 
   const posBlock = posSlice.length
-    ? posSlice.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+    ? posSlice.map((r, i) => `[${i}] ${r.text}`).join('\n\n')
     : '(none)';
   const critBlock = critSlice.length
-    ? critSlice.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+    ? critSlice.map((r, i) => `[${i}] ${r.text}`).join('\n\n')
     : '(none)';
 
   const prompt = `Analyze these Amazon product reviews and extract the key characteristics/aspects customers mention.
@@ -220,8 +220,8 @@ CRITICAL REVIEWS:
 ${critBlock}
 
 Return ONLY a JSON array of up to ${settings.characteristicsCount} characteristics, sorted by count descending.
-Each item: {"text":"concise 3-7 word phrase, lowercase","sentiment":"positive" or "negative","count":N}
-Deduplicate similar ideas. "count" is how many of the provided reviews mention this characteristic.`;
+Each item: {"text":"concise 3-7 word phrase, lowercase","sentiment":"positive" or "negative","count":N,"sources":[{"list":"positive" or "critical","index":0-based review index,"sentence":"the exact sentence(s) from that review proving this characteristic"}]}
+Deduplicate similar ideas. "count" is how many of the provided reviews mention this characteristic. Include one source entry per supporting review.`;
 
   const response = await fetch(`${endpoint}/chat/completions`, {
     method: 'POST',
@@ -233,7 +233,7 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
         { role: 'user', content: prompt },
       ],
       temperature: 0.3,
-      max_tokens: 600,
+      max_tokens: 2000,
     }),
   });
 
@@ -243,13 +243,26 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
 
   const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  try {
-    const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as ReviewCharacteristic[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((c) => c.text && c.sentiment && typeof c.count === 'number')
-      .slice(0, settings.characteristicsCount);
-  } catch {
-    return [];
-  }
+  const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as Array<{
+    text?: string; sentiment?: string; count?: number;
+    sources?: Array<{ list?: string; index?: number; sentence?: string }>;
+  }>;
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((c) => c.text && c.sentiment && typeof c.count === 'number')
+    .slice(0, settings.characteristicsCount)
+    .map((c) => ({
+      text: c.text!,
+      sentiment: c.sentiment as 'positive' | 'negative',
+      count: c.count!,
+      sources: (c.sources ?? [])
+        .filter((s) => s.sentence && typeof s.index === 'number')
+        .map((s) => {
+          const pool = s.list === 'critical' ? critSlice : posSlice;
+          return {
+            excerpt: s.sentence!,
+            url: (s.index! >= 0 && s.index! < pool.length) ? pool[s.index!].url : null,
+          };
+        }),
+    }));
 }

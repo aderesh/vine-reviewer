@@ -131,11 +131,16 @@ export async function fetchReviewsHtml(
  * Parses review body texts out of a raw Amazon reviews page HTML.
  * Must be called in a browser context (side panel) — uses DOMParser.
  */
-export function parseReviewTexts(html: string): string[] {
+export function parseReviewTexts(html: string, locale: string): { text: string; url: string | null }[] {
   if (!html) return [];
   const doc = new DOMParser().parseFromString(html, 'text/html');
-  return Array.from(doc.querySelectorAll('[data-hook="review-body"] span'))
-    .map((el) => el.textContent?.trim() ?? '')
-    .filter((t) => t.length > 30)
-    .slice(0, 10);
+  const results: { text: string; url: string | null }[] = [];
+  for (const container of doc.querySelectorAll('[data-hook="review"]')) {
+    const text = container.querySelector('[data-hook="review-body"] span')?.textContent?.trim() ?? '';
+    if (text.length <= 30) continue;
+    const path = container.querySelector('a[data-hook="review-title"]')?.getAttribute('href') ?? null;
+    results.push({ text, url: path ? `https://www.${locale}${path}` : null });
+    if (results.length >= 10) break;
+  }
+  return results;
 }

@@ -141,6 +141,17 @@ body {
   margin-bottom: 12px;
 }
 
+.field-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.field-label-row label {
+  margin-bottom: 0;
+}
+
 .field label {
   display: block;
   font-size: 12px;
@@ -347,6 +358,39 @@ body {
   color: #888;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.char-sources {
+  margin: 0 0 2px 10px;
+  font-size: 11px;
+}
+
+.char-sources summary {
+  cursor: pointer;
+  color: #888;
+  list-style: none;
+  padding: 2px 4px;
+}
+
+.char-sources summary::-webkit-details-marker { display: none; }
+
+.char-source {
+  padding: 3px 6px;
+  margin: 2px 0;
+  border-left: 2px solid #e0e0e0;
+  line-height: 1.4;
+  color: #444;
+}
+
+.char-source-text {
+  font-style: italic;
+}
+
+.char-source-link {
+  margin-left: 5px;
+  text-decoration: none;
+  color: #0066cc;
+  font-style: normal;
 }
 
 .fill-ready {

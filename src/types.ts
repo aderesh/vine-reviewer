@@ -46,10 +46,16 @@ export interface Settings {
 // ---------------------------------------------------------------------------
 // Review characteristics extracted from existing customer reviews
 // ---------------------------------------------------------------------------
+export interface ReviewSource {
+  excerpt: string;
+  url: string | null;
+}
+
 export interface ReviewCharacteristic {
   text: string;                         // e.g. "easy to install"
   sentiment: 'positive' | 'negative';
   count: number;                        // times mentioned across scraped reviews
+  sources: ReviewSource[];
 }
 
 // ---------------------------------------------------------------------------

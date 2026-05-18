@@ -168,6 +168,35 @@ export default function App() {
   const [characteristics, setCharacteristics] = useState<ReviewCharacteristic[]>([]);
   const [checkedChars, setCheckedChars] = useState<Set<string>>(new Set());
   const [charsStatus, setCharsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [charsError, setCharsError] = useState('');
+
+  // ------------------------------------------------------------------
+  // Load characteristics (can be called on initial load or via button)
+  // ------------------------------------------------------------------
+  const loadCharacteristics = useCallback(async (asin: string, locale: string) => {
+    setCharacteristics([]);
+    setCheckedChars(new Set());
+    setCharsStatus('loading');
+    setCharsError('');
+    try {
+      const resp = await chrome.runtime.sendMessage({
+        type: 'FETCH_REVIEWS',
+        asin,
+        locale,
+      }) as { positiveHtml?: string; criticalHtml?: string; error?: string };
+      if (resp?.error) throw new Error(resp.error);
+      const posReviews = parseReviewTexts(resp?.positiveHtml ?? '', locale);
+      const critReviews = parseReviewTexts(resp?.criticalHtml ?? '', locale);
+      if (posReviews.length || critReviews.length) {
+        const chars = await extractCharacteristics(posReviews, critReviews);
+        setCharacteristics(chars);
+      }
+      setCharsStatus('done');
+    } catch (err) {
+      setCharsError(toMessage(err));
+      setCharsStatus('error');
+    }
+  }, []);
 
   // ------------------------------------------------------------------
   // Side-effect: listen for a review target being set in storage
@@ -184,6 +213,7 @@ export default function App() {
     setCharacteristics([]);
     setCheckedChars(new Set());
     setCharsStatus('idle');
+    setCharsError('');
     setStage({ type: 'loading', title: target.title });
 
     try {
@@ -201,29 +231,11 @@ export default function App() {
       setStage({ type: 'form', product });
 
       // Load characteristics asynchronously — does not block the form UI
-      setCharsStatus('loading');
-      (async () => {
-        try {
-          const resp = await chrome.runtime.sendMessage({
-            type: 'FETCH_REVIEWS',
-            asin: target.asin,
-            locale: target.locale,
-          }) as { positiveHtml?: string; criticalHtml?: string; error?: string };
-          const posTexts = parseReviewTexts(resp?.positiveHtml ?? '');
-          const critTexts = parseReviewTexts(resp?.criticalHtml ?? '');
-          if (posTexts.length || critTexts.length) {
-            const chars = await extractCharacteristics(posTexts, critTexts);
-            setCharacteristics(chars);
-          }
-          setCharsStatus('done');
-        } catch {
-          setCharsStatus('error');
-        }
-      })();
+      loadCharacteristics(target.asin, target.locale);
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
     }
-  }, []);
+  }, [loadCharacteristics]);
 
   useEffect(() => {
     storage.getItem<ReviewTarget>('local:reviewTarget').then((target) => {
@@ -391,9 +403,22 @@ export default function App() {
 
             {/* Characteristics */}
             <div className="field">
-              <label>Insights from other buyers</label>
+              <div className="field-label-row">
+                <label>Insights from other buyers</label>
+                {charsStatus !== 'loading' && currentProduct && (
+                  <button
+                    className="link-btn"
+                    onClick={() => loadCharacteristics(currentProduct.asin, currentProduct.locale)}
+                  >
+                    ↺ Reload
+                  </button>
+                )}
+              </div>
               {charsStatus === 'loading' && (
                 <p className="muted chars-loading">Analysing existing reviews…</p>
+              )}
+              {charsStatus === 'error' && (
+                <p className="error-msg">⚠ {charsError}</p>
               )}
               {charsStatus === 'done' && characteristics.length === 0 && (
                 <p className="muted">No existing reviews found.</p>
@@ -403,24 +428,34 @@ export default function App() {
                   {characteristics.map((c) => {
                     const on = checkedChars.has(c.text);
                     return (
-                      <label
-                        key={c.text}
-                        className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={on}
-                          onChange={(e) =>
-                            setCheckedChars((prev) => {
-                              const next = new Set(prev);
-                              e.target.checked ? next.add(c.text) : next.delete(c.text);
-                              return next;
-                            })
-                          }
-                        />
-                        <span className="char-text">{c.text}</span>
-                        <span className="char-badge">{c.count}×</span>
-                      </label>
+                      <div key={c.text} className="char-item-wrap">
+                        <label className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={(e) =>
+                              setCheckedChars((prev) => {
+                                const next = new Set(prev);
+                                e.target.checked ? next.add(c.text) : next.delete(c.text);
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="char-text">{c.text}</span>
+                          <span className="char-badge">{c.count}×</span>
+                        </label>
+                        {c.sources.length > 0 && (
+                          <details className="char-sources">
+                            <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
+                            {c.sources.map((s, i) => (
+                              <div key={i} className="char-source">
+                                <span className="char-source-text">"{s.excerpt}"</span>
+                                {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
+                              </div>
+                            ))}
+                          </details>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
