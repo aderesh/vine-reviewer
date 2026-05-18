@@ -27,20 +27,6 @@ export async function getSettings(): Promise<Settings> {
 // Review target (content script → side panel handoff)
 // ---------------------------------------------------------------------------
 
-export async function getReviewTarget(): Promise<ReviewTarget | null> {
-  return storage.getItem<ReviewTarget>(REVIEW_TARGET_KEY);
-}
-
 export async function setReviewTarget(target: ReviewTarget): Promise<void> {
   await storage.setItem(REVIEW_TARGET_KEY, target);
-}
-
-export async function clearReviewTarget(): Promise<void> {
-  await storage.removeItem(REVIEW_TARGET_KEY);
-}
-
-export function watchReviewTarget(
-  cb: (target: ReviewTarget | null) => void,
-): () => void {
-  return storage.watch<ReviewTarget | null>(REVIEW_TARGET_KEY, cb);
 }

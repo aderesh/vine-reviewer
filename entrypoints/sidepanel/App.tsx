@@ -241,10 +241,6 @@ export default function App() {
   // ------------------------------------------------------------------
   async function handleGenerate() {
     if (!currentProduct || isGenerating) return;
-    if (!userNotes.trim()) {
-      alert('Please describe your experience with the product first.');
-      return;
-    }
     setIsGenerating(true);
 
     const checked = characteristics
