@@ -436,50 +436,66 @@ export default function App() {
               {charsStatus === 'done' && characteristics.length === 0 && (
                 <p className="muted">No existing reviews found.</p>
               )}
-              {characteristics.length > 0 && (
-                <div className="char-list">
-                  {characteristics.map((c) => {
-                    const on = checkedChars.has(c.text);
-                    return (
-                      <div key={c.text} className="char-item-wrap">
-                        <label className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}>
-                          <input
-                            type="checkbox"
-                            checked={on}
-                            onChange={(e) =>
-                              setCheckedChars((prev) => {
-                                const next = new Set(prev);
-                                e.target.checked ? next.add(c.text) : next.delete(c.text);
-                                return next;
-                              })
-                            }
-                          />
-                          <span className="char-text">{c.text}</span>
-                          <span className="char-badge">{c.count}×</span>
-                        </label>
-                        {c.sources.length > 0 && (
-                          <details className="char-sources" open>
-                            <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
-                            {c.sources.map((s, i) => (
-                              <div key={i} className="char-source">
-                                <span className="char-source-text">"{s.excerpt}"</span>
-                                <button
-                                  className="char-source-add"
-                                  title="Add to your notes"
-                                  onClick={() => setUserNotes((prev) =>
-                                    prev ? `${prev}\n${s.excerpt}` : s.excerpt
-                                  )}
-                                >+</button>
-                                {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
-                              </div>
-                            ))}
-                          </details>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {characteristics.length > 0 && (() => {
+                const positive = characteristics.filter((c) => c.sentiment === 'positive');
+                const negative = characteristics.filter((c) => c.sentiment === 'negative');
+                const renderChar = (c: ReviewCharacteristic) => {
+                  const on = checkedChars.has(c.text);
+                  return (
+                    <div key={c.text} className="char-item-wrap">
+                      <label className={`char-item char-${c.sentiment}${on ? ' char-on' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={(e) =>
+                            setCheckedChars((prev) => {
+                              const next = new Set(prev);
+                              e.target.checked ? next.add(c.text) : next.delete(c.text);
+                              return next;
+                            })
+                          }
+                        />
+                        <span className="char-text">{c.text}</span>
+                        <span className="char-badge">{c.count}×</span>
+                      </label>
+                      {c.sources.length > 0 && (
+                        <details className="char-sources" open>
+                          <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
+                          {c.sources.map((s, i) => (
+                            <div key={i} className="char-source">
+                              <span className="char-source-text">"{s.excerpt}"</span>
+                              <button
+                                className="char-source-add"
+                                title="Add to your notes"
+                                onClick={() => setUserNotes((prev) =>
+                                  prev ? `${prev}\n${s.excerpt}` : s.excerpt
+                                )}
+                              >+</button>
+                              {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
+                            </div>
+                          ))}
+                        </details>
+                      )}
+                    </div>
+                  );
+                };
+                return (
+                  <div className="char-list">
+                    {positive.length > 0 && (
+                      <>
+                        <div className="char-group-label char-group-positive">Positives</div>
+                        {positive.map(renderChar)}
+                      </>
+                    )}
+                    {negative.length > 0 && (
+                      <>
+                        <div className="char-group-label char-group-negative">Negatives</div>
+                        {negative.map(renderChar)}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Notes */}
