@@ -1,0 +1,281 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  color: #111;
+  background: #fff;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #232f3e;
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-title {
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  color: #f90;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  text-decoration: underline;
+}
+
+.link-btn:hover {
+  color: #ffb347;
+}
+
+/* Body */
+.body {
+  flex: 1;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+/* States */
+.state-idle {
+  padding: 24px 8px;
+  line-height: 1.6;
+  color: #555;
+}
+
+.state-idle a {
+  color: #0066c0;
+}
+
+.state-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  color: #555;
+}
+
+.muted {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  max-width: 90%;
+  word-break: break-word;
+}
+
+/* Spinner */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #ddd;
+  border-top-color: #232f3e;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Product card */
+.product-card {
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 14px;
+}
+
+.product-title {
+  font-size: 13px;
+  font-weight: bold;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.product-meta {
+  font-size: 12px;
+  color: #e47911;
+  margin-bottom: 6px;
+}
+
+.features-details summary {
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 4px;
+}
+
+.features-list {
+  margin: 6px 0 0 16px;
+  font-size: 11px;
+  color: #333;
+  line-height: 1.5;
+}
+
+/* Form elements */
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.field input[type="text"],
+.field textarea {
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #111;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field input[type="text"]:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: #888;
+}
+
+.char-count {
+  font-size: 11px;
+  color: #888;
+  text-align: right;
+  margin-top: 2px;
+}
+
+/* Star picker */
+.star-picker {
+  display: flex;
+  gap: 2px;
+}
+
+.star {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  padding: 2px;
+  line-height: 1;
+  transition: transform 0.1s;
+}
+
+.star:hover {
+  transform: scale(1.15);
+}
+
+.star-on {
+  color: #e47911;
+}
+
+.star-off {
+  color: #ccc;
+}
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  padding: 9px;
+  background: #232f3e;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.btn-primary:hover {
+  background: #37475a;
+}
+
+.btn-secondary {
+  padding: 6px 12px;
+  background: transparent;
+  color: #232f3e;
+  border: 1px solid #232f3e;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: #f0f0f0;
+}
+
+/* Review state */
+.review-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.word-count {
+  font-size: 11px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.word-count-warn {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.fill-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.4;
+}
+
+/* Error state */
+.state-error {
+  padding: 16px 0;
+}
+
+.error-msg {
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #856404;
+  margin-bottom: 12px;
+  word-break: break-word;
+}
