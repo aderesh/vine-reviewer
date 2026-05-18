@@ -188,6 +188,24 @@ export default function App() {
   const [questionsError, setQuestionsError] = useState('');
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const resetForm = useCallback(() => {
+    setUserNotes('');
+    setStarRating(5);
+    setReviewTitle('');
+    setReviewBody('');
+    setIsGenerating(false);
+    setGenerateError('');
+    setFillStatus('');
+    setFillTabId(null);
+    setCharacteristics([]);
+    setCheckedChars(new Set());
+    setCharsStatus('idle');
+    setCharsError('');
+    setQuestions([]);
+    setQuestionsStatus('idle');
+    setQuestionsError('');
+  }, []);
+
   // ------------------------------------------------------------------
   // Auto-save draft to storage (debounced)
   // ------------------------------------------------------------------
@@ -258,21 +276,7 @@ export default function App() {
   // ------------------------------------------------------------------
   const handleTarget = useCallback(async (target: ReviewTarget) => {
     await storage.removeItem(REVIEW_TARGET_KEY);
-    setUserNotes('');
-    setStarRating(5);
-    setReviewTitle('');
-    setReviewBody('');
-    setIsGenerating(false);
-    setGenerateError('');
-    setFillStatus('');
-    setFillTabId(null);
-    setCharacteristics([]);
-    setCheckedChars(new Set());
-    setCharsStatus('idle');
-    setCharsError('');
-    setQuestions([]);
-    setQuestionsStatus('idle');
-    setQuestionsError('');
+    resetForm();
     setStage({ type: 'loading', title: target.title });
 
     try {
@@ -308,13 +312,12 @@ export default function App() {
 
       setStage({ type: 'form', product });
 
-      const hasDraft = !!draft;
-      if (!hasDraft || !draft?.characteristics?.length) loadCharacteristics(target.asin, target.locale);
-      if (!hasDraft || !draft?.questions?.length) loadQuestions(product);
+      if (!draft?.characteristics?.length) loadCharacteristics(target.asin, target.locale);
+      if (!draft?.questions?.length) loadQuestions(product);
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
     }
-  }, [loadCharacteristics, loadQuestions]);
+  }, [loadCharacteristics, loadQuestions, resetForm]);
 
   useEffect(() => {
     storage.getItem<ReviewTarget>(REVIEW_TARGET_KEY).then((target) => {
@@ -331,18 +334,7 @@ export default function App() {
   // Reset draft — clears all inputs and removes saved draft
   // ------------------------------------------------------------------
   async function handleReset() {
-    setUserNotes('');
-    setStarRating(5);
-    setReviewTitle('');
-    setReviewBody('');
-    setCheckedChars(new Set());
-    setCharacteristics([]);
-    setCharsStatus('idle');
-    setCharsError('');
-    setQuestions([]);
-    setQuestionsStatus('idle');
-    setQuestionsError('');
-    setGenerateError('');
+    resetForm();
     if (currentProduct) {
       await storage.removeItem(draftKey(currentProduct.asin));
     }
