@@ -139,6 +139,19 @@ export default function Options() {
             OpenAI models: <code>gpt-4o</code>, <code>gpt-4o-mini</code>.
           </p>
         </div>
+
+        <div className="field">
+          <label htmlFor="review-count">Reviews analysed per sentiment</label>
+          <input
+            id="review-count"
+            type="number"
+            min={1}
+            max={10}
+            value={settings.reviewCount}
+            onChange={(e) => update('reviewCount', Math.max(1, Math.min(10, Number(e.target.value))))}
+          />
+          <p className="hint">How many positive and negative buyer reviews to send to the AI for insights. Lower = fewer tokens used.</p>
+        </div>
       </section>
 
       {/* ---- Prompts ---- */}

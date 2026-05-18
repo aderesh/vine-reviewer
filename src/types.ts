@@ -37,6 +37,7 @@ export interface Settings {
   apiEndpoint: string;
   openaiApiKey: string;
   openaiModel: string;
+  reviewCount: number;
   systemPrompt: string;
   reviewPromptTemplate: string;
 }

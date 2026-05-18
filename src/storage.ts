@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   apiEndpoint: 'https://api.groq.com/openai/v1',
   openaiApiKey: '',
   openaiModel: 'llama-3.3-70b-versatile',
+  reviewCount: 3,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
 };

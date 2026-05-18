@@ -1,6 +1,5 @@
 import type { ProductInfo, GeneratedReview, ReviewCharacteristic } from './types';
 import { getSettings } from './storage';
-import { DEFAULT_REVIEW_PROMPT } from './prompts';
 
 // ---------------------------------------------------------------------------
 // Prompt builder
@@ -13,9 +12,8 @@ function buildPrompt(
   starRating: number,
   checkedCharacteristics?: string[],
 ): string {
-  const hasChars = checkedCharacteristics && checkedCharacteristics.length > 0;
-  const charText = hasChars
-    ? checkedCharacteristics!.map((c) => `• ${c}`).join('\n')
+  const charText = checkedCharacteristics?.length
+    ? checkedCharacteristics.map((c) => `• ${c}`).join('\n')
     : 'None';
 
   let result = template
@@ -28,7 +26,7 @@ function buildPrompt(
 
   // Fallback: if the template had no {characteristics} placeholder but the user
   // did check some characteristics, inject them before the JSON instruction.
-  if (hasChars && !template.includes('{characteristics}')) {
+  if (checkedCharacteristics?.length && !template.includes('{characteristics}')) {
     const injection =
       `\nCharacteristics I agree with from other buyer reviews (mention each one naturally in the review):\n${charText}\n`;
     // Insert before "Respond with valid JSON" if present, otherwise append.
@@ -61,11 +59,11 @@ export async function generateReview(
     );
   }
 
-  const endpoint = (settings.apiEndpoint || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
-  const model = settings.openaiModel || 'llama-3.3-70b-versatile';
+  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
+  const model = settings.openaiModel;
 
   const userPrompt = buildPrompt(
-    settings.reviewPromptTemplate || DEFAULT_REVIEW_PROMPT,
+    settings.reviewPromptTemplate,
     product,
     userNotes,
     starRating,
@@ -199,14 +197,18 @@ export async function extractCharacteristics(
   const settings = await getSettings();
   if (!settings.openaiApiKey) return [];
 
-  const endpoint = (settings.apiEndpoint || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
-  const model = settings.openaiModel || 'llama-3.3-70b-versatile';
+  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
+  const model = settings.openaiModel;
+  const limit = settings.reviewCount;
 
-  const posBlock = positiveTexts.length
-    ? positiveTexts.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+  const posSlice = positiveTexts.slice(0, limit);
+  const critSlice = criticalTexts.slice(0, limit);
+
+  const posBlock = posSlice.length
+    ? posSlice.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
     : '(none)';
-  const critBlock = criticalTexts.length
-    ? criticalTexts.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+  const critBlock = critSlice.length
+    ? critSlice.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
     : '(none)';
 
   const prompt = `Analyze these Amazon product reviews and extract the key characteristics/aspects customers mention.
