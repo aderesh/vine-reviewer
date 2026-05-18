@@ -27,12 +27,15 @@ Requirements:
 - Honest and balanced — include real negatives if they come through in my notes
 - Avoid promotional language, hype, or superlatives
 - Don't duplicate product features if those are not used.
-- Write a concise review title (max 120 characters, no surrounding quotes).
+- Write a concise review title (max 120 characters, no surrounding quotes). 
 - Make it sound like a real review, no ads, no bullshit.
 - Don't make it sound like an essay "In this review blah blah blah".
-- Don't make things up if I didn't mention those or didn't select those.
+- *Critical*. Don't make things up if I didn't mention those or didn't select those.
 - If there are no positives or negatives, don't put those sections.
 - No room for improvements comments unless I mention it.
+- Do not repeat the product name.
+- Do not put rating in the title or the description. Justifying rating is ok but there is no need to duplicate it.
+- Do not repeat full product name in the description. Use model if needed but never to full name including manufacturer. 
 
 Respond with valid JSON only, no other text:
 {"title": "...", "body": "..."}`;

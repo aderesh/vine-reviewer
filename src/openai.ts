@@ -266,7 +266,12 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
     }),
   });
 
-  if (!response.ok) return [];
+  if (!response.ok) {
+    const msg = response.status === 429
+      ? 'Rate limit reached (429). Wait a moment and click ↺ Reload.'
+      : `AI API error ${response.status}: ${response.statusText}`;
+    throw new Error(msg);
+  }
 
   const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
