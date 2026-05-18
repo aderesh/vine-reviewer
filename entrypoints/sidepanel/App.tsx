@@ -162,6 +162,7 @@ export default function App() {
   const [reviewTitle, setReviewTitle] = useState('');
   const [reviewBody, setReviewBody] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState('');
   const [fillStatus, setFillStatus] = useState('');
   const [fillTabId, setFillTabId] = useState<number | null>(null);
   const [currentProduct, setCurrentProduct] = useState<ProductInfo | null>(null);
@@ -208,6 +209,7 @@ export default function App() {
     setReviewTitle('');
     setReviewBody('');
     setIsGenerating(false);
+    setGenerateError('');
     setFillStatus('');
     setFillTabId(null);
     setCharacteristics([]);
@@ -254,6 +256,7 @@ export default function App() {
   async function handleGenerate() {
     if (!currentProduct || isGenerating) return;
     setIsGenerating(true);
+    setGenerateError('');
 
     const checked = characteristics
       .filter((c) => checkedChars.has(c.text))
@@ -274,7 +277,7 @@ export default function App() {
       setReviewTitle(response.review.title);
       setReviewBody(response.review.body);
     } catch (err) {
-      setStage({ type: 'error', message: toMessage(err) });
+      setGenerateError(toMessage(err));
     } finally {
       setIsGenerating(false);
     }
@@ -487,6 +490,7 @@ export default function App() {
             >
               {isGenerating ? 'Generating…' : hasReview ? '↩ Regenerate' : 'Generate Review'}
             </button>
+            {generateError && <p className="error-msg">⚠ {generateError}</p>}
 
             {/* Generated review — appears below when ready */}
             {hasReview && (
