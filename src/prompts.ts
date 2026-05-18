@@ -1,3 +1,12 @@
+export const DEFAULT_QUESTIONS_PROMPT =
+  `Product: {productTitle}
+{features}
+{description}
+
+Generate 5–8 concise questions that a reviewer should address when reviewing this specific product.
+Focus on what matters most for this category (performance, usability, durability, value, etc.).
+Return ONLY: {"questions": ["question 1", "question 2", ...]}`;
+
 export const DEFAULT_SYSTEM_PROMPT =
   `You are an expert Amazon product reviewer. You write honest, balanced, and insightful reviews that help other customers make real purchasing decisions. Your reviews are specific and direct, explain the "why" behind every opinion, and avoid marketing language, hype, or superlatives.`;
 

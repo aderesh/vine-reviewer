@@ -300,3 +300,56 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
         }),
     }));
 }
+
+// ---------------------------------------------------------------------------
+// Review guidance questions
+// ---------------------------------------------------------------------------
+
+/**
+ * Generates a list of category-specific questions to guide the reviewer.
+ * e.g. for a router: "How is the Wi-Fi range?", "Was setup straightforward?"
+ */
+export async function generateReviewQuestions(product: ProductInfo): Promise<string[]> {
+  const settings = await getSettings();
+  if (!settings.openaiApiKey) return [];
+
+  const endpoint = settings.apiEndpoint.replace(/\/$/, '');
+
+  const featuresLine = product.features.slice(0, 6).join('; ');
+  const descLine = product.description ? product.description.slice(0, 400) : '';
+
+  const prompt = settings.questionsPromptTemplate
+    .replace('{productTitle}', product.title)
+    .replace('{features}', featuresLine ? `Features: ${featuresLine}` : '')
+    .replace('{description}', descLine ? `Description: ${descLine}` : '');
+
+  const response = await fetch(`${endpoint}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.openaiApiKey}` },
+    body: JSON.stringify({
+      model: settings.openaiModel,
+      messages: [
+        { role: 'system', content: 'You help reviewers write thorough product reviews. Respond only with valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.4,
+      max_tokens: 400,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    const msg = response.status === 429
+      ? 'Rate limit reached (429). Wait a moment and try again.'
+      : `AI API error ${response.status}: ${response.statusText}`;
+    throw new Error(msg);
+  }
+
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
+  const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as { questions?: unknown };
+  const arr = Array.isArray(parsed) ? parsed : (parsed.questions ?? Object.values(parsed)[0]);
+  if (!Array.isArray(arr)) return [];
+  return arr.filter((q): q is string => typeof q === 'string').slice(0, 10);
+}

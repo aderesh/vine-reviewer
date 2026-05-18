@@ -36,9 +36,7 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
        │    • Characteristics can be reloaded at any time with ↺ Reload
        │
        ▼
-4. User sees product info summary + selects relevant characteristics (checkboxes)
-       + writes freeform notes: "Tell me about your experience"
-       + Star rating selector (1–5)
+4. User sees product info summary + selects relevant characteristics (checkboxes)\n       + a list of AI-generated category-specific review questions (e.g. "How is Wi-Fi range?",\n         "Was setup straightforward?") to guide what to cover — reloadable\n       + writes freeform notes: "Tell me about your experience"\n       + Star rating selector (1–5)
        │   (all inputs auto-saved to storage; restored on panel reload for the same ASIN)
        │   [Reset draft] clears inputs, selections, and the saved draft
        │

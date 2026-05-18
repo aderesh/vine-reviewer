@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { storage } from 'wxt/storage';
 import type { ProductInfo, GeneratedReview, ReviewTarget, ReviewCharacteristic } from '../../src/types';
 import { parseProductHtml, parseReviewTexts } from '../../src/scraper';
-import { extractCharacteristics } from '../../src/openai';
+import { extractCharacteristics, generateReviewQuestions } from '../../src/openai';
 
 // ---------------------------------------------------------------------------
 // Form-fill injector — runs inside the Amazon review page via executeScript.
@@ -159,6 +159,7 @@ interface DraftState {
   reviewBody: string;
   checkedChars: string[];
   characteristics: ReviewCharacteristic[];
+  questions: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +181,9 @@ export default function App() {
   const [checkedChars, setCheckedChars] = useState<Set<string>>(new Set());
   const [charsStatus, setCharsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [charsError, setCharsError] = useState('');
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [questionsStatus, setQuestionsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [questionsError, setQuestionsError] = useState('');
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ------------------------------------------------------------------
@@ -197,10 +201,28 @@ export default function App() {
         reviewBody,
         checkedChars: [...checkedChars],
         characteristics,
+        questions,
       });
     }, 500);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
-  }, [currentProduct, userNotes, starRating, reviewTitle, reviewBody, checkedChars, characteristics]);
+  }, [currentProduct, userNotes, starRating, reviewTitle, reviewBody, checkedChars, characteristics, questions]);
+
+  // ------------------------------------------------------------------
+  // Load review guidance questions
+  // ------------------------------------------------------------------
+  const loadQuestions = useCallback(async (product: ProductInfo) => {
+    setQuestions([]);
+    setQuestionsStatus('loading');
+    setQuestionsError('');
+    try {
+      const qs = await generateReviewQuestions(product);
+      setQuestions(qs);
+      setQuestionsStatus('done');
+    } catch (err) {
+      setQuestionsError(toMessage(err));
+      setQuestionsStatus('error');
+    }
+  }, []);
 
   // ------------------------------------------------------------------
   // Load characteristics (can be called on initial load or via button)
@@ -247,6 +269,9 @@ export default function App() {
     setCheckedChars(new Set());
     setCharsStatus('idle');
     setCharsError('');
+    setQuestions([]);
+    setQuestionsStatus('idle');
+    setQuestionsError('');
     setStage({ type: 'loading', title: target.title });
 
     try {
@@ -274,18 +299,25 @@ export default function App() {
           setCharacteristics(draft.characteristics);
           setCharsStatus('done');
         }
+        if (draft.questions?.length > 0) {
+          setQuestions(draft.questions);
+          setQuestionsStatus('done');
+        }
       }
 
       setStage({ type: 'form', product });
 
-      // Skip characteristics fetch if restored from draft
+      // Skip fetches if restored from draft
       if (!draft || draft.asin !== target.asin || !(draft.characteristics?.length > 0)) {
         loadCharacteristics(target.asin, target.locale);
+      }
+      if (!draft || draft.asin !== target.asin || !(draft.questions?.length > 0)) {
+        loadQuestions(product);
       }
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
     }
-  }, [loadCharacteristics]);
+  }, [loadCharacteristics, loadQuestions]);
 
   useEffect(() => {
     storage.getItem<ReviewTarget>('local:reviewTarget').then((target) => {
@@ -309,6 +341,8 @@ export default function App() {
     setCheckedChars(new Set());
     setCharacteristics([]);
     setCharsStatus('idle');
+    setQuestions([]);
+    setQuestionsStatus('idle');
     setGenerateError('');
     if (currentProduct) {
       await storage.removeItem('local:draft');
@@ -573,6 +607,27 @@ export default function App() {
                   </div>
                 );
               })()}
+            </div>
+
+            {/* Review guidance questions */}
+            <div className="field">
+              <div className="field-label-row">
+                <label>What to cover in your review</label>
+                {questionsStatus !== 'loading' && currentProduct && (
+                  <button className="link-btn" onClick={() => loadQuestions(currentProduct)}>↺ Reload</button>
+                )}
+              </div>
+              {questionsStatus === 'loading' && (
+                <p className="muted chars-loading">Generating questions…</p>
+              )}
+              {questionsStatus === 'error' && (
+                <p className="error-msg">⚠ {questionsError}</p>
+              )}
+              {questionsStatus === 'done' && questions.length > 0 && (
+                <ul className="review-questions">
+                  {questions.map((q, i) => <li key={i}>{q}</li>)}
+                </ul>
+              )}
             </div>
 
             {/* Notes */}

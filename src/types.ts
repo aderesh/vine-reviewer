@@ -41,6 +41,7 @@ export interface Settings {
   characteristicsCount: number;
   systemPrompt: string;
   reviewPromptTemplate: string;
+  questionsPromptTemplate: string;
 }
 
 // ---------------------------------------------------------------------------

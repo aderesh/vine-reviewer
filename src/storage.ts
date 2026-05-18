@@ -1,6 +1,6 @@
 import { storage } from 'wxt/storage';
 import type { ReviewTarget, Settings } from './types';
-import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT } from './prompts';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT, DEFAULT_QUESTIONS_PROMPT } from './prompts';
 
 // Storage keys (wxt/storage uses "scope:key" format)
 const REVIEW_TARGET_KEY = 'local:reviewTarget';
@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS: Settings = {
   characteristicsCount: 5,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
+  questionsPromptTemplate: DEFAULT_QUESTIONS_PROMPT,
 };
 
 // ---------------------------------------------------------------------------

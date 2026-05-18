@@ -50,6 +50,7 @@ export default function Options() {
       ...settings,
       systemPrompt: DEFAULT_SETTINGS.systemPrompt,
       reviewPromptTemplate: DEFAULT_SETTINGS.reviewPromptTemplate,
+      questionsPromptTemplate: DEFAULT_SETTINGS.questionsPromptTemplate,
     };
     setSettings(next);
     try {
@@ -209,6 +210,30 @@ export default function Options() {
             value={settings.reviewPromptTemplate}
             onChange={(e) => update('reviewPromptTemplate', e.target.value)}
             rows={18}
+          />
+        </div>
+
+        <div className="field">
+          <label htmlFor="questions-prompt">Review Questions Prompt Template</label>
+          <div className="placeholder-table">
+            <div className="placeholder-row placeholder-header">
+              <span>Placeholder</span><span>Replaced with</span>
+            </div>
+            {[
+              ['{productTitle}', 'Product name from the Amazon listing'],
+              ['{features}',     'Feature list prefixed with "Features:" or empty'],
+              ['{description}',  'Description prefixed with "Description:" or empty'],
+            ].map(([ph, desc]) => (
+              <div key={ph} className="placeholder-row">
+                <code>{ph}</code><span>{desc}</span>
+              </div>
+            ))}
+          </div>
+          <textarea
+            id="questions-prompt"
+            value={settings.questionsPromptTemplate}
+            onChange={(e) => update('questionsPromptTemplate', e.target.value)}
+            rows={8}
           />
         </div>
 

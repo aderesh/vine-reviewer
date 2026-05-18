@@ -297,6 +297,19 @@ body {
   word-break: break-word;
 }
 
+/* Review guidance questions */
+.review-questions {
+  margin: 4px 0 0 16px;
+  padding: 0;
+  font-size: 12px;
+  color: #333;
+  line-height: 1.6;
+}
+
+.review-questions li {
+  margin-bottom: 2px;
+}
+
 /* Characteristics checkboxes */
 .chars-loading {
   font-style: italic;
