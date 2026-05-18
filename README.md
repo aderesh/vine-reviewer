@@ -16,7 +16,8 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
 1. Visit amazon.ca/vine/vine-reviews (or any Amazon locale's Vine page)
        │
        ▼
-2. Extension injects a [Write Review (AI)] button next to each pending item
+2. Extension injects a [✍ Write Review (AI)] button next to each pending item
+       (or [↩ Cont. Review (AI)] if a saved draft already exists for that product)
        │
        ▼
 3. Click [Write Review (AI)] → Side Panel opens
@@ -37,8 +38,9 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
        │
        ▼
 4. User sees product info summary + selects relevant characteristics (checkboxes)\n       + a list of AI-generated category-specific review questions (e.g. "How is Wi-Fi range?",\n         "Was setup straightforward?") to guide what to cover — reloadable\n       + writes freeform notes: "Tell me about your experience"\n       + Star rating selector (1–5)
-       │   (all inputs auto-saved to storage; restored on panel reload for the same ASIN)
-       │   [Reset draft] clears inputs, selections, and the saved draft
+       │   (all inputs auto-saved per ASIN — each product keeps its own draft;
+       │    switching products preserves every draft independently)
+       │   [Reset draft] clears inputs, selections, and removes the draft for the current product
        │
        ▼
 5. [Generate Review] → AI API call (via background worker)
