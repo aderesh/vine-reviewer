@@ -51,13 +51,23 @@ export interface Settings {
 }
 
 // ---------------------------------------------------------------------------
+// Review characteristics extracted from existing customer reviews
+// ---------------------------------------------------------------------------
+export interface ReviewCharacteristic {
+  text: string;                         // e.g. "easy to install"
+  sentiment: 'positive' | 'negative';
+  count: number;                        // times mentioned across scraped reviews
+}
+
+// ---------------------------------------------------------------------------
 // Message bus (content ↔ background)
 // ---------------------------------------------------------------------------
 export type AppMessage =
   | { type: 'OPEN_REVIEW'; asin: string; title: string; locale: string }
   | { type: 'FETCH_PRODUCT'; asin: string; locale: string }
-  | { type: 'GENERATE_REVIEW'; product: ProductInfo; userNotes: string; starRating: number }
-  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string; title: string; body: string; starRating: number };
+  | { type: 'FETCH_REVIEWS'; asin: string; locale: string }
+  | { type: 'GENERATE_REVIEW'; product: ProductInfo; userNotes: string; starRating: number; checkedCharacteristics?: string[] }
+  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string };
 
 export type AppMessageResponse =
   | { ok: true }

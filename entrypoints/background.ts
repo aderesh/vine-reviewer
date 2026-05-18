@@ -1,6 +1,6 @@
-import { fetchProductHtml } from '../src/scraper';
+import { fetchProductHtml, fetchReviewsHtml } from '../src/scraper';
 import { generateReview } from '../src/openai';
-import { setReviewTarget, setPendingFill } from '../src/storage';
+import { setReviewTarget } from '../src/storage';
 import type { AppMessage } from '../src/types';
 
 export default defineBackground(() => {
@@ -59,32 +59,34 @@ async function handleMessage(
       return { html };
     }
 
+    case 'FETCH_REVIEWS': {
+      const reviews = await fetchReviewsHtml(message.asin, message.locale);
+      return reviews;
+    }
+
     case 'GENERATE_REVIEW': {
       const review = await generateReview(
         message.product,
         message.userNotes,
         message.starRating,
+        message.checkedCharacteristics,
       );
       return { review };
     }
 
     case 'FILL_REVIEW_FORM': {
-      // Persist the fill payload so the review-form content script can read it
-      await setPendingFill({
-        asin: message.asin,
-        locale: message.locale,
-        title: message.title,
-        body: message.body,
-        starRating: message.starRating,
-      });
-
-      // Navigate the active tab to the Amazon review creation page
-      const reviewUrl = `https://${message.locale}/review/create-review/?asin=${message.asin}`;
+      // Navigate the active tab to the Amazon review creation page.
+      // Use www. explicitly (content script pattern requires a subdomain).
+      // Include channel=vine-portal so Amazon renders the Vine-flavoured form.
+      const reviewUrl =
+        `https://www.${message.locale}/review/create-review` +
+        `?channel=vine-portal&asin=${message.asin}`;
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id != null) {
-        await chrome.tabs.update(tab.id, { url: reviewUrl });
+        const updatedTab = await chrome.tabs.update(tab.id, { url: reviewUrl });
+        return { ok: true, tabId: updatedTab?.id };
       }
-      return { ok: true };
+      return { ok: false, error: 'No active tab found' };
     }
 
     default: {

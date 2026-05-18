@@ -16,33 +16,60 @@ import { storage } from 'wxt/storage';
 import type { PendingFill } from '../src/types';
 
 // ---------------------------------------------------------------------------
-// Selectors — update these if Amazon changes the review form markup
+// Selectors — ordered from most to least specific.
+// If filling stops working, open DevTools on the review page and check
+// what id/name/data-hook attributes the title input and body textarea have,
+// then add them at the TOP of the appropriate list below.
 // ---------------------------------------------------------------------------
 const FIELD_SELECTORS = {
-  // Star rating: Amazon renders these as hidden radio inputs styled as stars.
-  // The value attribute matches the star count (1–5).
+  // Star rating radio inputs (value = star count)
   starRadio: (n: number) =>
-    `input[type="radio"][value="${n}"][name*="star"], input[type="radio"][value="${n}"][id*="star"]`,
+    `input[type="radio"][value="${n}"][name*="star"], ` +
+    `input[type="radio"][value="${n}"][id*="star"], ` +
+    `input[type="radio"][value="${n}"][name*="rating"], ` +
+    `input[type="radio"][value="${n}"][name*="Rating"]`,
 
-  // Fallback: clickable star label elements
+  // Clickable star label / decorative elements (fallback)
   starLabel: (n: number) =>
-    `label[for*="star-${n}"], [data-hook="star-${n}"], .a-star-${n}`,
+    `label[for*="star-${n}"], label[for*="rating-${n}"], ` +
+    `[data-hook="star-${n}"], .a-star-${n} a, ` +
+    `[id*="star-${n}"], [id*="rating-${n}"]`,
 
-  // Review title input
+  // Review headline / title
   title: [
-    'input[name="title"]',
+    // Amazon's most common review title IDs
     '#dp-review-title',
+    'input[name="title"]',
     'input[id*="title"]',
+    'input[id*="Title"]',
+    'input[id*="headline"]',
+    'input[data-hook*="title"]',
     'input[placeholder*="headline" i]',
     'input[placeholder*="title" i]',
+    'input[aria-label*="headline" i]',
+    'input[aria-label*="title" i]',
+    // Generic fallback: first visible text input in the page body
+    'main input[type="text"]',
+    'form input[type="text"]',
+    'input[type="text"]',
   ],
 
   // Review body textarea
   body: [
     'textarea[name="description"]',
-    '[data-hook="review-text-area-wrapper"] textarea',
     'textarea[id*="description"]',
+    'textarea[id*="review"]',
+    'textarea[id*="Review"]',
+    'textarea[id*="body"]',
+    'textarea[id*="text"]',
+    '[data-hook="review-text-area-wrapper"] textarea',
+    '[data-testid*="review"] textarea',
+    '[data-testid*="body"] textarea',
     'textarea[placeholder*="review" i]',
+    'textarea[aria-label*="review" i]',
+    // Generic fallback: first visible textarea
+    'main textarea',
+    'form textarea',
     'textarea',
   ],
 };
@@ -69,8 +96,13 @@ export default defineContentScript({
     const fill = await storage.getItem<PendingFill>('local:pendingFill');
     if (!fill) return;
 
-    // Wait for the form to be ready (Amazon loads it asynchronously)
-    await waitForElement(FIELD_SELECTORS.body[0], 8000);
+    // Wait for ANY textarea — the form is loaded asynchronously by React.
+    // Try the most specific selector first, then fall back to any textarea.
+    await waitForAnyElement(
+      [...FIELD_SELECTORS.body, 'textarea', 'input[type="text"]'],
+      10_000,
+    );
+
     showBanner(fill);
   },
 });
@@ -116,12 +148,22 @@ function showBanner(fill: PendingFill): void {
     await storage.removeItem('local:pendingFill');
 
     if (errors.length > 0) {
+      // Log what inputs/textareas ARE on the page so the developer can update selectors
+      const inputs = Array.from(document.querySelectorAll('input[type="text"]'))
+        .map((el) => `input: id="${el.id}" name="${(el as HTMLInputElement).name}" placeholder="${(el as HTMLInputElement).placeholder}"`)
+        .join('\n');
+      const textareas = Array.from(document.querySelectorAll('textarea'))
+        .map((el) => `textarea: id="${el.id}" name="${(el as HTMLTextAreaElement).name}" placeholder="${(el as HTMLTextAreaElement).placeholder}"`)
+        .join('\n');
+      console.warn('[Vine Reviewer] Fill failed. Inputs found on page:\n' + inputs + '\n' + textareas);
+
       showToast(
-        `Filled with issues:\n• ${errors.join('\n• ')}\nPlease fill remaining fields manually.`,
+        `Partial fill — could not set:\n• ${errors.join('\n• ')}\n\nCheck DevTools console for selectors.`,
         'warn',
+        8000,
       );
     } else {
-      showToast('Form filled — please review and submit.', 'ok');
+      showToast('Form filled — please review and submit.', 'ok', 4000);
     }
   });
 
@@ -222,27 +264,21 @@ function setStarRating(stars: number): boolean {
 // Utilities
 // ---------------------------------------------------------------------------
 
-function waitForElement(selector: string, timeoutMs: number): Promise<void> {
+/** Resolves as soon as any selector from the list matches, or after timeout. */
+function waitForAnyElement(selectors: string[], timeoutMs: number): Promise<void> {
   return new Promise((resolve) => {
-    if (document.querySelector(selector)) {
-      resolve();
-      return;
-    }
+    const check = () => selectors.some((s) => document.querySelector(s));
+    if (check()) { resolve(); return; }
+
     const observer = new MutationObserver(() => {
-      if (document.querySelector(selector)) {
-        observer.disconnect();
-        resolve();
-      }
+      if (check()) { observer.disconnect(); resolve(); }
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(() => {
-      observer.disconnect();
-      resolve(); // proceed even if element never appeared
-    }, timeoutMs);
+    setTimeout(() => { observer.disconnect(); resolve(); }, timeoutMs);
   });
 }
 
-function showToast(message: string, type: 'ok' | 'warn'): void {
+function showToast(message: string, type: 'ok' | 'warn', durationMs = 5000): void {
   const toast = document.createElement('div');
   toast.style.cssText = [
     'position:fixed',
@@ -256,10 +292,13 @@ function showToast(message: string, type: 'ok' | 'warn'): void {
     'font-family:Arial,sans-serif',
     'font-size:13px',
     'white-space:pre-line',
-    'max-width:360px',
+    'max-width:380px',
     'box-shadow:0 2px 8px rgba(0,0,0,.4)',
+    'cursor:pointer',
   ].join(';');
   toast.textContent = message;
+  toast.title = 'Click to dismiss';
+  toast.addEventListener('click', () => toast.remove());
   document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
+  setTimeout(() => toast.remove(), durationMs);
 }

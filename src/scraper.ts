@@ -1,5 +1,13 @@
 import type { ProductInfo } from './types';
 
+// Shared fetch headers — used for both product page and reviews page
+const FETCH_HEADERS = {
+  Accept: 'text/html,application/xhtml+xml',
+  'Accept-Language': 'en-CA,en;q=0.9',
+  'User-Agent':
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -32,14 +40,7 @@ function getAll(doc: Document, selector: string): string[] {
 export async function fetchProductHtml(asin: string, locale: string): Promise<string> {
   const url = `https://${locale}/dp/${asin}`;
 
-  const response = await fetch(url, {
-    headers: {
-      Accept: 'text/html,application/xhtml+xml',
-      'Accept-Language': 'en-CA,en;q=0.9',
-      'User-Agent':
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-    },
-  });
+  const response = await fetch(url, { headers: FETCH_HEADERS });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch product page (${response.status}): ${url}`);
@@ -92,4 +93,49 @@ export function parseProductHtml(html: string, asin: string, locale: string): Pr
   const reviewCount = parseInt(countText.replace(/[^\d]/g, ''), 10) || null;
 
   return { asin, locale, title, features, description, avgRating, reviewCount };
+}
+
+// ---------------------------------------------------------------------------
+// Reviews scraper (for characteristics analysis)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches raw HTML for the top positive and critical review pages.
+ * Runs from the background service worker (no CORS restriction).
+ * Returns empty strings on failure so characteristics load gracefully degrades.
+ */
+export async function fetchReviewsHtml(
+  asin: string,
+  locale: string,
+): Promise<{ positiveHtml: string; criticalHtml: string }> {
+  const base = `https://${locale}/product-reviews/${asin}?sortBy=helpful&reviewerType=all_reviews&pageNumber=1`;
+
+  const [posRes, critRes] = await Promise.allSettled([
+    fetch(`${base}&filterByStar=positive`, { headers: FETCH_HEADERS }),
+    fetch(`${base}&filterByStar=critical`, { headers: FETCH_HEADERS }),
+  ]);
+
+  const positiveHtml =
+    posRes.status === 'fulfilled' && posRes.value.ok
+      ? await posRes.value.text()
+      : '';
+  const criticalHtml =
+    critRes.status === 'fulfilled' && critRes.value.ok
+      ? await critRes.value.text()
+      : '';
+
+  return { positiveHtml, criticalHtml };
+}
+
+/**
+ * Parses review body texts out of a raw Amazon reviews page HTML.
+ * Must be called in a browser context (side panel) — uses DOMParser.
+ */
+export function parseReviewTexts(html: string): string[] {
+  if (!html) return [];
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return Array.from(doc.querySelectorAll('[data-hook="review-body"] span'))
+    .map((el) => el.textContent?.trim() ?? '')
+    .filter((t) => t.length > 30)
+    .slice(0, 10);
 }

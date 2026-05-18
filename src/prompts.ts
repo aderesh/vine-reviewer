@@ -15,6 +15,9 @@ Description:
 My notes about this product:
 {userNotes}
 
+Characteristics I agree with from other buyer reviews (treat as my own opinions):
+{characteristics}
+
 My star rating: {starRating} out of 5 stars
 
 Requirements:

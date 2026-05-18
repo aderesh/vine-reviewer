@@ -1,4 +1,4 @@
-import type { ProductInfo, GeneratedReview } from './types';
+import type { ProductInfo, GeneratedReview, ReviewCharacteristic } from './types';
 import { getSettings } from './storage';
 import { DEFAULT_REVIEW_PROMPT } from './prompts';
 
@@ -11,13 +11,19 @@ function buildPrompt(
   product: ProductInfo,
   userNotes: string,
   starRating: number,
+  checkedCharacteristics?: string[],
 ): string {
+  const charText =
+    checkedCharacteristics && checkedCharacteristics.length > 0
+      ? checkedCharacteristics.map((c) => `• ${c}`).join('\n')
+      : 'None';
   return template
     .replace('{productTitle}', product.title)
     .replace('{features}', product.features.map((f) => `• ${f}`).join('\n') || 'N/A')
     .replace('{description}', product.description || 'N/A')
     .replace('{userNotes}', userNotes)
-    .replace('{starRating}', String(starRating));
+    .replace('{starRating}', String(starRating))
+    .replace('{characteristics}', charText);
 }
 
 // ---------------------------------------------------------------------------
@@ -28,6 +34,7 @@ export async function generateReview(
   product: ProductInfo,
   userNotes: string,
   starRating: number,
+  checkedCharacteristics?: string[],
 ): Promise<GeneratedReview> {
   const settings = await getSettings();
 
@@ -45,6 +52,7 @@ export async function generateReview(
     product,
     userNotes,
     starRating,
+    checkedCharacteristics,
   );
 
   const response = await fetch(`${endpoint}/chat/completions`, {
@@ -143,4 +151,74 @@ function escapeNewlinesInStrings(s: string): string {
     i++;
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Characteristics extractor
+// ---------------------------------------------------------------------------
+
+/**
+ * Asks the AI to analyse scraped review texts and return a deduplicated list
+ * of product characteristics sorted by how many reviews mention them.
+ *
+ * Can be called directly from the side panel (no background message needed).
+ */
+export async function extractCharacteristics(
+  positiveTexts: string[],
+  criticalTexts: string[],
+): Promise<ReviewCharacteristic[]> {
+  const settings = await getSettings();
+  if (!settings.openaiApiKey) return [];
+
+  const endpoint = (settings.apiEndpoint || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
+  const model = settings.openaiModel || 'llama-3.3-70b-versatile';
+
+  const posBlock = positiveTexts.length
+    ? positiveTexts.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+    : '(none)';
+  const critBlock = criticalTexts.length
+    ? criticalTexts.map((t, i) => `[${i + 1}] ${t}`).join('\n\n')
+    : '(none)';
+
+  const prompt = `Analyze these Amazon product reviews and extract the key characteristics/aspects customers mention.
+
+POSITIVE REVIEWS:
+${posBlock}
+
+CRITICAL REVIEWS:
+${critBlock}
+
+Return ONLY a JSON array of up to 15 characteristics, sorted by count descending.
+Each item: {"text":"concise 3-7 word phrase, lowercase","sentiment":"positive" or "negative","count":N}
+Deduplicate similar ideas. "count" is how many of the provided reviews mention this characteristic.`;
+
+  const response = await fetch(`${endpoint}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${settings.openaiApiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: 'You extract product characteristics from reviews. Respond only with valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 600,
+    }),
+  });
+
+  if (!response.ok) return [];
+
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = data.choices?.[0]?.message?.content?.trim() ?? '';
+
+  const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try {
+    const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as ReviewCharacteristic[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((c) => c.text && c.sentiment && typeof c.count === 'number')
+      .slice(0, 15);
+  } catch {
+    return [];
+  }
 }
