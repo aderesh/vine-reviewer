@@ -12,6 +12,8 @@
  * "Review Item" link and check whether its href contains "create-review".
  */
 
+import { storage } from 'wxt/storage';
+
 const INJECTED_ATTR = 'data-vr-injected';
 
 export default defineContentScript({
@@ -38,31 +40,34 @@ export default defineContentScript({
 
 // ---------------------------------------------------------------------------
 
-function injectButtons(): void {
+async function injectButtons(): Promise<void> {
   const locale = window.location.hostname.replace(/^www\./, '');
 
-  // Find every "Review Item" link that hasn't been processed yet.
-  // Amazon's Vine review links always contain "create-review" in the href.
-  document
-    .querySelectorAll<HTMLAnchorElement>(`a[href*="create-review"]:not([${INJECTED_ATTR}])`)
-    .forEach((link) => {
-      // Mark immediately to prevent duplicate injection on rapid mutations
-      link.setAttribute(INJECTED_ATTR, 'true');
+  const links = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(`a[href*="create-review"]:not([${INJECTED_ATTR}])`)
+  );
+  if (!links.length) return;
 
-      const asin = extractAsin(link.href);
-      if (!asin) return;
+  // Mark all immediately to prevent duplicate injection on rapid mutations
+  links.forEach((link) => link.setAttribute(INJECTED_ATTR, 'true'));
 
-      const title = extractTitle(link);
+  for (const link of links) {
+    const asin = extractAsin(link.href);
+    if (!asin) continue;
 
-      const btn = buildButton(() => {
-        chrome.runtime.sendMessage({ type: 'OPEN_REVIEW', asin, title, locale });
-      });
+    const title = extractTitle(link);
+    const hasDraft = !!(await storage.getItem<unknown>(`local:draft:${asin}`));
+    const label = hasDraft ? '↩ Cont. Review (AI)' : '✍ Write Review (AI)';
 
-      // Insert after the outermost Amazon button wrapper (.a-button span),
-      // NOT inside .a-button-inner which Amazon clips with overflow:hidden.
-      const outerWrapper = link.closest('.a-button') ?? link.parentElement;
-      outerWrapper?.insertAdjacentElement('afterend', btn);
+    const btn = buildButton(label, () => {
+      chrome.runtime.sendMessage({ type: 'OPEN_REVIEW', asin, title, locale });
     });
+
+    // Insert after the outermost Amazon button wrapper (.a-button span),
+    // NOT inside .a-button-inner which Amazon clips with overflow:hidden.
+    const outerWrapper = link.closest('.a-button') ?? link.parentElement;
+    outerWrapper?.insertAdjacentElement('afterend', btn);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -112,9 +117,9 @@ function extractTitle(reviewLink: HTMLAnchorElement): string {
   return 'Product';
 }
 
-function buildButton(onClick: () => void): HTMLButtonElement {
+function buildButton(label: string, onClick: () => void): HTMLButtonElement {
   const btn = document.createElement('button');
-  btn.textContent = '✍ Write Review (AI)';
+  btn.textContent = label;
   btn.setAttribute('type', 'button');
   btn.style.cssText = [
     'background:#232f3e',

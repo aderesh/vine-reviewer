@@ -5,7 +5,7 @@ import { parseProductHtml, parseReviewTexts } from '../../src/scraper';
 import { extractCharacteristics, generateReviewQuestions } from '../../src/openai';
 import { REVIEW_TARGET_KEY } from '../../src/storage';
 
-const DRAFT_KEY = 'local:draft';
+const draftKey = (asin: string) => `local:draft:${asin}`;
 
 // ---------------------------------------------------------------------------
 // Form-fill injector — runs inside the Amazon review page via executeScript.
@@ -155,7 +155,6 @@ type Stage =
   | { type: 'error'; message: string };
 
 interface DraftState {
-  asin: string;
   userNotes: string;
   starRating: number;
   reviewTitle: string;
@@ -193,11 +192,10 @@ export default function App() {
   // Auto-save draft to storage (debounced)
   // ------------------------------------------------------------------
   useEffect(() => {
-    if (!currentProduct) return;
+    if (!currentProduct || stage.type !== 'form') return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      storage.setItem<DraftState>(DRAFT_KEY, {
-        asin: currentProduct.asin,
+      storage.setItem<DraftState>(draftKey(currentProduct.asin), {
         userNotes,
         starRating,
         reviewTitle,
@@ -208,7 +206,7 @@ export default function App() {
       });
     }, 500);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
-  }, [currentProduct, userNotes, starRating, reviewTitle, reviewBody, checkedChars, characteristics, questions]);
+  }, [currentProduct, stage, userNotes, starRating, reviewTitle, reviewBody, checkedChars, characteristics, questions]);
 
   // ------------------------------------------------------------------
   // Load review guidance questions
@@ -291,8 +289,8 @@ export default function App() {
       setCurrentProduct(product);
 
       // Restore draft if one exists for this ASIN
-      const draft = await storage.getItem<DraftState>(DRAFT_KEY);
-      if (draft?.asin === target.asin) {
+      const draft = await storage.getItem<DraftState>(draftKey(target.asin));
+      if (draft) {
         setUserNotes(draft.userNotes);
         setStarRating(draft.starRating);
         setReviewTitle(draft.reviewTitle);
@@ -310,7 +308,7 @@ export default function App() {
 
       setStage({ type: 'form', product });
 
-      const hasDraft = draft?.asin === target.asin;
+      const hasDraft = !!draft;
       if (!hasDraft || !draft?.characteristics?.length) loadCharacteristics(target.asin, target.locale);
       if (!hasDraft || !draft?.questions?.length) loadQuestions(product);
     } catch (err) {
@@ -346,7 +344,7 @@ export default function App() {
     setQuestionsError('');
     setGenerateError('');
     if (currentProduct) {
-      await storage.removeItem(DRAFT_KEY);
+      await storage.removeItem(draftKey(currentProduct.asin));
     }
   }
 
