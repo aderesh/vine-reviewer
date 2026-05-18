@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { storage } from 'wxt/storage';
 import type { ProductInfo, GeneratedReview, ReviewTarget, ReviewCharacteristic } from '../../src/types';
 import { parseProductHtml, parseReviewTexts } from '../../src/scraper';
@@ -151,6 +151,16 @@ type Stage =
   | { type: 'form'; product: ProductInfo }
   | { type: 'error'; message: string };
 
+interface DraftState {
+  asin: string;
+  userNotes: string;
+  starRating: number;
+  reviewTitle: string;
+  reviewBody: string;
+  checkedChars: string[];
+  characteristics: ReviewCharacteristic[];
+}
+
 // ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
@@ -170,6 +180,27 @@ export default function App() {
   const [checkedChars, setCheckedChars] = useState<Set<string>>(new Set());
   const [charsStatus, setCharsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [charsError, setCharsError] = useState('');
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ------------------------------------------------------------------
+  // Auto-save draft to storage (debounced)
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (!currentProduct) return;
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      storage.setItem<DraftState>('local:draft', {
+        asin: currentProduct.asin,
+        userNotes,
+        starRating,
+        reviewTitle,
+        reviewBody,
+        checkedChars: [...checkedChars],
+        characteristics,
+      });
+    }, 500);
+    return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
+  }, [currentProduct, userNotes, starRating, reviewTitle, reviewBody, checkedChars, characteristics]);
 
   // ------------------------------------------------------------------
   // Load characteristics (can be called on initial load or via button)
@@ -230,10 +261,27 @@ export default function App() {
 
       const product = parseProductHtml(response.html, target.asin, target.locale);
       setCurrentProduct(product);
+
+      // Restore draft if one exists for this ASIN
+      const draft = await storage.getItem<DraftState>('local:draft');
+      if (draft?.asin === target.asin) {
+        setUserNotes(draft.userNotes);
+        setStarRating(draft.starRating);
+        setReviewTitle(draft.reviewTitle);
+        setReviewBody(draft.reviewBody);
+        setCheckedChars(new Set(draft.checkedChars));
+        if (draft.characteristics?.length > 0) {
+          setCharacteristics(draft.characteristics);
+          setCharsStatus('done');
+        }
+      }
+
       setStage({ type: 'form', product });
 
-      // Load characteristics asynchronously — does not block the form UI
-      loadCharacteristics(target.asin, target.locale);
+      // Skip characteristics fetch if restored from draft
+      if (!draft || draft.asin !== target.asin || !(draft.characteristics?.length > 0)) {
+        loadCharacteristics(target.asin, target.locale);
+      }
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
     }
@@ -249,6 +297,23 @@ export default function App() {
     );
     return unwatch;
   }, [handleTarget]);
+
+  // ------------------------------------------------------------------
+  // Reset draft — clears all inputs and removes saved draft
+  // ------------------------------------------------------------------
+  async function handleReset() {
+    setUserNotes('');
+    setStarRating(5);
+    setReviewTitle('');
+    setReviewBody('');
+    setCheckedChars(new Set());
+    setCharacteristics([]);
+    setCharsStatus('idle');
+    setGenerateError('');
+    if (currentProduct) {
+      await storage.removeItem('local:draft');
+    }
+  }
 
   // ------------------------------------------------------------------
   // Generate (runs in-place — does not change stage)
@@ -500,7 +565,10 @@ export default function App() {
 
             {/* Notes */}
             <div className="field">
-              <label htmlFor="user-notes">Your experience with this product</label>
+              <div className="field-label-row">
+                <label htmlFor="user-notes">Your experience with this product</label>
+                <button className="link-btn" onClick={handleReset}>Reset draft</button>
+              </div>
               <textarea
                 id="user-notes"
                 value={userNotes}
