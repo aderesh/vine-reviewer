@@ -219,7 +219,7 @@ ${posBlock}
 CRITICAL REVIEWS:
 ${critBlock}
 
-Return ONLY a JSON array of up to 15 characteristics, sorted by count descending.
+Return ONLY a JSON array of up to ${settings.characteristicsCount} characteristics, sorted by count descending.
 Each item: {"text":"concise 3-7 word phrase, lowercase","sentiment":"positive" or "negative","count":N}
 Deduplicate similar ideas. "count" is how many of the provided reviews mention this characteristic.`;
 
@@ -248,7 +248,7 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((c) => c.text && c.sentiment && typeof c.count === 'number')
-      .slice(0, 15);
+      .slice(0, settings.characteristicsCount);
   } catch {
     return [];
   }

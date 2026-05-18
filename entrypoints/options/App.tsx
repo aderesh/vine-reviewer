@@ -152,6 +152,19 @@ export default function Options() {
           />
           <p className="hint">How many positive and negative buyer reviews to send to the AI for insights. Lower = fewer tokens used.</p>
         </div>
+
+        <div className="field">
+          <label htmlFor="characteristics-count">Max characteristics shown</label>
+          <input
+            id="characteristics-count"
+            type="number"
+            min={1}
+            max={20}
+            value={settings.characteristicsCount}
+            onChange={(e) => update('characteristicsCount', Math.max(1, Math.min(20, Number(e.target.value))))}
+          />
+          <p className="hint">Maximum number of buyer insights to extract and display. Lower = fewer tokens used.</p>
+        </div>
       </section>
 
       {/* ---- Prompts ---- */}

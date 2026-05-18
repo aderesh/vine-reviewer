@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: Settings = {
   openaiApiKey: '',
   openaiModel: 'llama-3.3-70b-versatile',
   reviewCount: 3,
+  characteristicsCount: 5,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
 };
