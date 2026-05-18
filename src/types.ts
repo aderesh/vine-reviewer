@@ -30,15 +30,6 @@ export interface ReviewTarget {
   locale: string;
 }
 
-/** Set by the background when the user triggers form fill; read by review-form content script. */
-export interface PendingFill {
-  asin: string;
-  locale: string;
-  title: string;
-  body: string;
-  starRating: number;
-}
-
 // ---------------------------------------------------------------------------
 // Persisted user settings
 // ---------------------------------------------------------------------------
@@ -67,11 +58,4 @@ export type AppMessage =
   | { type: 'FETCH_PRODUCT'; asin: string; locale: string }
   | { type: 'FETCH_REVIEWS'; asin: string; locale: string }
   | { type: 'GENERATE_REVIEW'; product: ProductInfo; userNotes: string; starRating: number; checkedCharacteristics?: string[] }
-  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string }
-  | { type: 'GET_DEFAULTS' };
-
-export type AppMessageResponse =
-  | { ok: true }
-  | { product: ProductInfo }
-  | { review: GeneratedReview }
-  | { error: string };
+  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string };

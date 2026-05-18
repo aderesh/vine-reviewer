@@ -1,7 +1,6 @@
 import { fetchProductHtml, fetchReviewsHtml } from '../src/scraper';
 import { generateReview } from '../src/openai';
 import { setReviewTarget } from '../src/storage';
-import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT } from '../src/prompts';
 import type { AppMessage } from '../src/types';
 
 export default defineBackground(() => {
@@ -92,13 +91,6 @@ async function handleMessage(
         return { ok: true, tabId: updatedTab?.id };
       }
       return { ok: false, error: 'No active tab found' };
-    }
-
-    case 'GET_DEFAULTS': {
-      return {
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
-        reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
-      };
     }
 
     default: {

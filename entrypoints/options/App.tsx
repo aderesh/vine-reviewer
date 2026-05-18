@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { storage } from 'wxt/storage';
-import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT } from '../../src/prompts';
+import { DEFAULT_SETTINGS } from '../../src/storage';
 import type { Settings } from '../../src/types';
 
 const PRESETS: Record<string, { endpoint: string; model: string }> = {
@@ -16,14 +16,6 @@ const PRESETS: Record<string, { endpoint: string; model: string }> = {
     endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai',
     model: 'gemini-2.0-flash',
   },
-};
-
-const DEFAULT_SETTINGS: Settings = {
-  apiEndpoint: 'https://api.groq.com/openai/v1',
-  openaiApiKey: '',
-  openaiModel: 'llama-3.3-70b-versatile',
-  systemPrompt: DEFAULT_SYSTEM_PROMPT,
-  reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
 };
 
 export default function Options() {
@@ -56,8 +48,8 @@ export default function Options() {
     setConfirmReset(false);
     const next = {
       ...settings,
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
+      systemPrompt: DEFAULT_SETTINGS.systemPrompt,
+      reviewPromptTemplate: DEFAULT_SETTINGS.reviewPromptTemplate,
     };
     setSettings(next);
     try {

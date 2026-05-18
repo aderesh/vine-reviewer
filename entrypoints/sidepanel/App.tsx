@@ -36,23 +36,6 @@ function fillReviewFormInPage(data: { title: string; body: string; stars: number
     return null;
   }
 
-  // Log everything — open DevTools on the review page to see these
-  console.log('[VineReviewer] inject → page:', location.href);
-  console.log('[VineReviewer] text inputs:',
-    [...document.querySelectorAll<HTMLInputElement>('input[type="text"]')]
-      .map(e => `#${e.id} name=${e.name} placeholder="${e.placeholder}"`).join(' | ') || 'none');
-  console.log('[VineReviewer] textareas:',
-    [...document.querySelectorAll<HTMLTextAreaElement>('textarea')]
-      .map(e => `#${e.id} name=${e.name} placeholder="${e.placeholder}"`).join(' | ') || 'none');
-  console.log('[VineReviewer] radio inputs:',
-    [...document.querySelectorAll<HTMLInputElement>('input[type="radio"]')]
-      .map(e => `name=${e.name} value=${e.value} id=${e.id}`).join(' | ') || 'none');
-  // Log anything star/rating shaped
-  console.log('[VineReviewer] star/rating elements:',
-    [...document.querySelectorAll('[class*="star"],[class*="rating"],[data-hook*="star"],[data-testid*="star"],[data-testid*="rating"],[aria-label*="star" i],[aria-label*="rating" i]')]
-      .map(e => `${e.tagName}#${(e as HTMLElement).id} class="${e.className}" aria="${e.getAttribute('aria-label')}" data-value="${e.getAttribute('data-value')}" data-rating="${e.getAttribute('data-rating')}"`)
-      .join('\n') || 'none');
-
   const filled: string[] = [];
   const failed: string[] = [];
 
