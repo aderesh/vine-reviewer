@@ -2,7 +2,7 @@
 
 ## Source of Truth
 
-`README.md` is the single source of truth for this project — its purpose, user flow, and feature set. Keep it up to date whenever a feature changes or a user requirement is implemented. Copilot instructions intentionally contain no feature descriptions.
+`README.md` is the single source of truth for this project — its purpose, user flow, and feature set. **After every request that adds, changes, or removes a user-facing feature, update `README.md` to reflect the change.** Copilot instructions intentionally contain no feature descriptions.
 
 ## General Rules
 

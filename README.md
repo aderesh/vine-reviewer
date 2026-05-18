@@ -25,6 +25,7 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
        │    • Product name, bullet features, full description
        │    • Current avg star rating + review count
        │    • [View product page] link to navigate the active tab
+       │    • [My orders] header link to return to the Vine orders page
        │
        ├─ Asynchronously fetches & analyses existing buyer reviews:
        │    • Scrapes top positive and critical reviews
@@ -38,6 +39,8 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
 4. User sees product info summary + selects relevant characteristics (checkboxes)
        + writes freeform notes: "Tell me about your experience"
        + Star rating selector (1–5)
+       │   (all inputs auto-saved to storage; restored on panel reload for the same ASIN)
+       │   [Reset draft] clears inputs, selections, and the saved draft
        │
        ▼
 5. [Generate Review] → AI API call (via background worker)
