@@ -1,12 +1,12 @@
 # Vine Reviewer — Browser Extension
 
-A browser extension for Brave/Chrome/Firefox that streamlines writing Amazon Vine reviews using the OpenAI API.
+A browser extension for Brave/Chrome/Firefox that streamlines writing Amazon Vine reviews using any OpenAI-compatible AI API (Groq, OpenAI, Gemini, etc.).
 
 ---
 
 ## Purpose
 
-Amazon Vine reviewers receive free products in exchange for honest reviews. Writing a thorough, useful review for every product is time-consuming. This extension automates the boilerplate: it pulls product context from Amazon, accepts a short freeform note from the user, and uses ChatGPT to produce a fully structured, insightful review that meets Amazon's quality standards — then fills it in for you.
+Amazon Vine reviewers receive free products in exchange for honest reviews. Writing a thorough, useful review for every product is time-consuming. This extension automates the boilerplate: it pulls product context from Amazon, scrapes existing buyer reviews to surface key insights, accepts a short freeform note from the user, and uses an AI to produce a fully structured, insightful review — then fills it in for you.
 
 ---
 
@@ -16,51 +16,44 @@ Amazon Vine reviewers receive free products in exchange for honest reviews. Writ
 1. Visit amazon.ca/vine/vine-reviews (or any Amazon locale's Vine page)
        │
        ▼
-2. Extension injects a [Write Review] button next to each pending item
+2. Extension injects a [Write Review (AI)] button next to each pending item
        │
        ▼
-3. Click [Write Review] → Side Panel opens
+3. Click [Write Review (AI)] → Side Panel opens
        │
        ├─ Extension auto-fetches product details via ASIN:
        │    • Product name, bullet features, full description
        │    • Current avg star rating + review count
-       │    • Top 3–5 existing customer reviews (for AI context)
+       │    • [View product page] link to navigate the active tab
+       │
+       ├─ Asynchronously fetches & analyses existing buyer reviews:
+       │    • Scrapes top positive and critical reviews
+       │    • AI extracts recurring characteristics ("good build quality",
+       │      "battery life disappointing", etc.) grouped into Positives / Negatives
+       │    • Each characteristic shows supporting excerpts with links to source reviews
+       │    • User can add any excerpt directly to their notes with a [+] button
+       │    • Characteristics can be reloaded at any time with ↺ Reload
        │
        ▼
-4. User sees product info summary + a single feedback field:
-       "Tell me about your experience with this product"
-       (freeform — AI extracts pros/cons/sentiment)
-       + Star rating selector (1–5, required separate field on Amazon)
+4. User sees product info summary + selects relevant characteristics (checkboxes)
+       + writes freeform notes: "Tell me about your experience"
+       + Star rating selector (1–5)
        │
        ▼
-5. [Generate Review] →  OpenAI API call (via background worker)
+5. [Generate Review] → AI API call (via background worker)
        │
        ▼
 6. Generated review appears:
-       • Review title (required by Amazon)
+       • Review title (concise — product name not repeated)
        • Review body (200–400 words, pros/cons structure)
        • Word count badge
-       • [Edit inline] [Regenerate] [Fill Review Form →]
+       • Editable inline   [↩ Regenerate]
        │
        ▼
-7. [Fill Review Form →]
-       • Opens the Amazon "Write a Customer Review" page for this product
-       • Extension fills title + body with simulated human typing
-       • User reviews the filled form and submits manually
+7. [Open Review Form →] → navigates the active tab to the Amazon review form
+   [Populate Review Form] → fills title + body via script injection
+   User reviews the filled form and submits manually
 ```
-
----
-
-## Review Quality Criteria
-
-The AI is instructed to produce a review that:
-
-- Is **200–400 words**
-- Uses a **pros / cons structure** (inferred from freeform user input)
-- Is **useful and insightful** — explains *why* something is good or bad, not just that it is
-- Avoids promotional language, superlatives, and marketing fluff
-- Is honest — includes real negatives if the user mentioned any
-- Generates a **concise, descriptive title** (not clickbait)
 
 ---
 
@@ -104,10 +97,14 @@ The goal is reliable form filling without triggering bot-detection heuristics:
 
 ### Options Page
 The options page exposes:
-- **OpenAI API key** (stored securely, show/hide toggle)
-- **Model selection** (gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo)
+- **Provider presets** — one-click setup for Groq (free), OpenAI, Gemini
+- **API endpoint** — any OpenAI-compatible URL (default: `https://api.groq.com/openai/v1`)
+- **API key** (stored locally, show/hide toggle)
+- **Model selection** (default: `llama-3.3-70b-versatile` on Groq)
+- **Reviews analysed per sentiment** — how many positive/negative reviews to scrape for insights (default: 3)
+- **Max characteristics shown** — how many buyer insights to extract and display (default: 5)
 - **System prompt** — editable textarea with the AI's persona/role
-- **Review prompt template** — editable textarea with `{productTitle}`, `{features}`, `{description}`, `{userNotes}`, `{starRating}` placeholders; "Reset to defaults" button
+- **Review prompt template** — editable textarea with placeholders; "Reset to defaults" button
 
 All settings survive browser restarts via `browser.storage.local`.
 
@@ -122,10 +119,14 @@ All settings survive browser restarts via `browser.storage.local`.
 - No Amazon Product API, no third-party services, no authentication beyond OpenAI
 - Scraping is done via a background `fetch` (not a content script) to keep it clean and avoid CORS issues
 
-### OpenAI Integration
-- Model: `gpt-4o` (configurable in Options, defaults to `gpt-4o`)
-- Called directly via `fetch` to `https://api.openai.com/v1/chat/completions`
-- No OpenAI SDK — avoids the dependency and bundle size
+### AI Integration
+- Default provider: **Groq** (`https://api.groq.com/openai/v1`) — free tier available
+- Default model: `llama-3.3-70b-versatile` (configurable)
+- Any OpenAI-compatible endpoint works (OpenAI, Gemini, local models, etc.)
+- Called directly via `fetch` — no SDK dependency
+- `response_format: { type: 'json_object' }` enforced on every request
+- AI is used for two separate calls: extracting buyer characteristics and generating the review
+- Review quality criteria (structure, tone, length, title style) are defined in the **review prompt template**, editable in Settings
 
 ### Tech Stack — Minimal Dependencies
 
@@ -151,27 +152,26 @@ Follows [WXT](https://wxt.dev) conventions. WXT generates `manifest.json` from `
 ```
 vine-reviewer/
 ├── entrypoints/                      # WXT entry points (auto-discovered)
-│   ├── background.ts                 # Service worker: message routing, OpenAI calls, product fetching
-│   ├── vine-orders.content.ts        # Injects [Write Review] buttons on Vine orders page
-│   ├── review-form.content.ts        # Fills Amazon review form on user request
+│   ├── background.ts                 # Service worker: message routing, product/review fetching
+│   ├── vine-orders.content.ts        # Injects [Write Review (AI)] buttons on Vine orders page
 │   ├── sidepanel/
 │   │   ├── index.html
 │   │   ├── main.tsx                  # React entry point
-│   │   ├── App.tsx                   # Panel UI: product info → feedback form → generated review
+│   │   ├── App.tsx                   # Panel UI: product info → insights → feedback → generated review
 │   │   └── styles.css
 │   └── options/
 │       ├── index.html
 │       ├── main.tsx
-│       ├── App.tsx                   # Settings: API key, model, editable prompts
+│       ├── App.tsx                   # Settings: provider presets, API key, model, counts, prompts
 │       └── styles.css
 ├── src/                              # Shared utilities
-│   ├── types.ts                      # ProductInfo, Settings, AppMessage, etc.
+│   ├── types.ts                      # ProductInfo, Settings, ReviewCharacteristic, AppMessage, etc.
 │   ├── prompts.ts                    # Default system prompt and review prompt template
-│   ├── storage.ts                    # Typed helpers around wxt/storage
-│   ├── scraper.ts                    # Fetches and parses Amazon product page HTML
-│   └── openai.ts                     # Calls OpenAI API, builds prompt from template
+│   ├── storage.ts                    # Typed helpers around wxt/storage; DEFAULT_SETTINGS
+│   ├── scraper.ts                    # Fetches and parses Amazon product + review page HTML
+│   └── openai.ts                     # AI API calls: extractCharacteristics, generateReview
 ├── public/
-│   └── icons/                        # 16, 32, 48, 128px PNG icons (add manually)
+│   └── icons/                        # 16, 32, 48, 128px PNG icons
 ├── wxt.config.ts                     # WXT + manifest configuration
 ├── tsconfig.json
 ├── package.json
