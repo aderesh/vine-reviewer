@@ -15,7 +15,7 @@ Description:
 My notes about this product:
 {userNotes}
 
-Characteristics I agree with from other buyer reviews (treat as my own opinions):
+Characteristics I agree with from other buyer reviews (mention each one naturally in the review):
 {characteristics}
 
 My star rating: {starRating} out of 5 stars
@@ -26,7 +26,13 @@ Requirements:
 - Useful and insightful — explain WHY, not just WHAT
 - Honest and balanced — include real negatives if they come through in my notes
 - Avoid promotional language, hype, or superlatives
-- Write a concise review title (max 120 characters, no surrounding quotes)
+- Don't duplicate product features if those are not used.
+- Write a concise review title (max 120 characters, no surrounding quotes).
+- Make it sound like a real review, no ads, no bullshit.
+- Don't make it sound like an essay "In this review blah blah blah".
+- Don't make things up if I didn't mention those or didn't select those.
+- If there are no positives or negatives, don't put those sections.
+- No room for improvements comments unless I mention it.
 
 Respond with valid JSON only, no other text:
 {"title": "...", "body": "..."}`;

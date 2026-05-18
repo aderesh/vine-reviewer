@@ -13,17 +13,34 @@ function buildPrompt(
   starRating: number,
   checkedCharacteristics?: string[],
 ): string {
-  const charText =
-    checkedCharacteristics && checkedCharacteristics.length > 0
-      ? checkedCharacteristics.map((c) => `• ${c}`).join('\n')
-      : 'None';
-  return template
+  const hasChars = checkedCharacteristics && checkedCharacteristics.length > 0;
+  const charText = hasChars
+    ? checkedCharacteristics!.map((c) => `• ${c}`).join('\n')
+    : 'None';
+
+  let result = template
     .replace('{productTitle}', product.title)
     .replace('{features}', product.features.map((f) => `• ${f}`).join('\n') || 'N/A')
     .replace('{description}', product.description || 'N/A')
     .replace('{userNotes}', userNotes)
     .replace('{starRating}', String(starRating))
     .replace('{characteristics}', charText);
+
+  // Fallback: if the template had no {characteristics} placeholder but the user
+  // did check some characteristics, inject them before the JSON instruction.
+  if (hasChars && !template.includes('{characteristics}')) {
+    const injection =
+      `\nCharacteristics I agree with from other buyer reviews (mention each one naturally in the review):\n${charText}\n`;
+    // Insert before "Respond with valid JSON" if present, otherwise append.
+    const jsonMarker = result.indexOf('Respond with valid JSON');
+    if (jsonMarker !== -1) {
+      result = result.slice(0, jsonMarker) + injection + result.slice(jsonMarker);
+    } else {
+      result += injection;
+    }
+  }
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +86,9 @@ export async function generateReview(
       ],
       temperature: 0.7,
       max_tokens: 900,
+      // Force JSON output on providers that support it (Groq, OpenAI).
+      // Gemini's OpenAI-compat layer ignores unknown fields, so safe to always send.
+      response_format: { type: 'json_object' },
     }),
   });
 
@@ -111,6 +131,15 @@ export async function generateReview(
   const sanitized = escapeNewlinesInStrings(jsonStr);
   const fallback = tryParse(sanitized);
   if (fallback) return fallback;
+
+  // Attempt 3: model added preamble/postamble — extract just the {...} block.
+  const start = jsonStr.indexOf('{');
+  const end = jsonStr.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    const extracted = jsonStr.slice(start, end + 1);
+    const fromExtracted = tryParse(extracted) ?? tryParse(escapeNewlinesInStrings(extracted));
+    if (fromExtracted) return fromExtracted;
+  }
 
   throw new Error(
     'Failed to parse the AI response as JSON. Try regenerating, or adjust the review prompt in options.',

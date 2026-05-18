@@ -30,6 +30,7 @@ export default function Options() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [showKey, setShowKey] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     storage.getItem<Settings>('local:settings').then((saved) => {
@@ -51,13 +52,21 @@ export default function Options() {
     setTimeout(() => setStatus(null), 3000);
   }
 
-  function handleResetPrompts() {
-    if (!confirm('Reset both prompts to their defaults?')) return;
-    setSettings((prev) => ({
-      ...prev,
+  async function handleResetPrompts() {
+    setConfirmReset(false);
+    const next = {
+      ...settings,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
       reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
-    }));
+    };
+    setSettings(next);
+    try {
+      await storage.setItem('local:settings', next);
+      setStatus({ text: 'Prompts reset and saved.', ok: true });
+    } catch {
+      setStatus({ text: 'Reset applied but failed to save.', ok: false });
+    }
+    setTimeout(() => setStatus(null), 3000);
   }
 
   return (
@@ -160,18 +169,23 @@ export default function Options() {
 
         <div className="field">
           <label htmlFor="review-prompt">Review Prompt Template</label>
-          <p className="hint">
-            Available placeholders:{' '}
+          <div className="placeholder-table">
+            <div className="placeholder-row placeholder-header">
+              <span>Placeholder</span><span>Replaced with</span>
+            </div>
             {[
-              '{productTitle}',
-              '{features}',
-              '{description}',
-              '{userNotes}',
-              '{starRating}',
-            ].map((p) => (
-              <code key={p}>{p} </code>
+              ['{productTitle}',    'Product name from the Amazon listing'],
+              ['{features}',        'Bullet-point feature list from the product page'],
+              ['{description}',     'Full product description from the listing'],
+              ['{userNotes}',       'Your notes typed in the side panel'],
+              ['{characteristics}', 'Buyer insights you checked in the side panel'],
+              ['{starRating}',      'Star rating you selected (1–5)'],
+            ].map(([ph, desc]) => (
+              <div key={ph} className="placeholder-row">
+                <code>{ph}</code><span>{desc}</span>
+              </div>
             ))}
-          </p>
+          </div>
           <textarea
             id="review-prompt"
             value={settings.reviewPromptTemplate}
@@ -180,9 +194,18 @@ export default function Options() {
           />
         </div>
 
-        <button type="button" className="btn-secondary" onClick={handleResetPrompts}>
-          Reset prompts to defaults
-        </button>
+        {confirmReset ? (
+          <span className="reset-confirm">
+            Reset both prompts to defaults?{' '}
+            <button type="button" className="btn-danger" onClick={handleResetPrompts}>Yes, reset</button>
+            {' '}
+            <button type="button" className="btn-secondary" onClick={() => setConfirmReset(false)}>Cancel</button>
+          </span>
+        ) : (
+          <button type="button" className="btn-secondary" onClick={() => setConfirmReset(true)}>
+            Reset prompts to defaults
+          </button>
+        )}
       </section>
 
       {/* ---- Save ---- */}

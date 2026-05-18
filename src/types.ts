@@ -67,7 +67,8 @@ export type AppMessage =
   | { type: 'FETCH_PRODUCT'; asin: string; locale: string }
   | { type: 'FETCH_REVIEWS'; asin: string; locale: string }
   | { type: 'GENERATE_REVIEW'; product: ProductInfo; userNotes: string; starRating: number; checkedCharacteristics?: string[] }
-  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string };
+  | { type: 'FILL_REVIEW_FORM'; asin: string; locale: string }
+  | { type: 'GET_DEFAULTS' };
 
 export type AppMessageResponse =
   | { ok: true }

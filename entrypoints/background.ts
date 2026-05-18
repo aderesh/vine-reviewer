@@ -1,6 +1,7 @@
 import { fetchProductHtml, fetchReviewsHtml } from '../src/scraper';
 import { generateReview } from '../src/openai';
 import { setReviewTarget } from '../src/storage';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT } from '../src/prompts';
 import type { AppMessage } from '../src/types';
 
 export default defineBackground(() => {
@@ -11,7 +12,11 @@ export default defineBackground(() => {
         openPanelOnActionClick: true,
       });
     }
+    migrateSettings();
   });
+
+  // Also run on startup so reloads pick up the migration too
+  chrome.runtime.onStartup.addListener(migrateSettings);
 
   // Handle all messages from content scripts and the side panel
   chrome.runtime.onMessage.addListener(
@@ -89,9 +94,46 @@ async function handleMessage(
       return { ok: false, error: 'No active tab found' };
     }
 
+    case 'GET_DEFAULTS': {
+      return {
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        reviewPromptTemplate: DEFAULT_REVIEW_PROMPT,
+      };
+    }
+
     default: {
       const _exhaustive: never = message;
       throw new Error(`Unknown message type: ${(_exhaustive as AppMessage).type}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings migration — patches stored prompts that predate a feature addition.
+// Safe to re-run: skips if the placeholder is already present.
+// ---------------------------------------------------------------------------
+async function migrateSettings() {
+  const SETTINGS_KEY = 'local:settings';
+  const CHARS_PLACEHOLDER = '{characteristics}';
+  const CHARS_SECTION =
+    '\n\nCharacteristics I agree with from other buyer reviews ' +
+    '(mention each one naturally in the review):\n{characteristics}';
+
+  try {
+    const saved = await storage.getItem<Record<string, unknown>>(SETTINGS_KEY);
+    if (!saved) return;
+
+    const template = saved.reviewPromptTemplate as string | undefined;
+    if (!template || template.includes(CHARS_PLACEHOLDER)) return;
+
+    // Insert the section right after {userNotes}
+    const patched = template.includes('{userNotes}')
+      ? template.replace('{userNotes}', `{userNotes}${CHARS_SECTION}`)
+      : template + CHARS_SECTION;
+
+    await storage.setItem(SETTINGS_KEY, { ...saved, reviewPromptTemplate: patched });
+    console.log('[VineReviewer] Migrated reviewPromptTemplate to include {characteristics}.');
+  } catch (err) {
+    console.warn('[VineReviewer] Migration failed:', err);
   }
 }
