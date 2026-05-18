@@ -166,8 +166,6 @@ type Stage =
   | { type: 'idle' }
   | { type: 'loading'; title: string }
   | { type: 'form'; product: ProductInfo }
-  | { type: 'generating' }
-  | { type: 'review'; product: ProductInfo }
   | { type: 'error'; message: string };
 
 // ---------------------------------------------------------------------------
@@ -180,6 +178,7 @@ export default function App() {
   const [starRating, setStarRating] = useState(5);
   const [reviewTitle, setReviewTitle] = useState('');
   const [reviewBody, setReviewBody] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const [fillStatus, setFillStatus] = useState('');
   const [fillTabId, setFillTabId] = useState<number | null>(null);
   const [currentProduct, setCurrentProduct] = useState<ProductInfo | null>(null);
@@ -189,12 +188,14 @@ export default function App() {
 
   // ------------------------------------------------------------------
   // Side-effect: listen for a review target being set in storage
-  // (triggered by the vine-orders content script via the background)
   // ------------------------------------------------------------------
   const handleTarget = useCallback(async (target: ReviewTarget) => {
     await storage.removeItem('local:reviewTarget');
     setUserNotes('');
     setStarRating(5);
+    setReviewTitle('');
+    setReviewBody('');
+    setIsGenerating(false);
     setFillStatus('');
     setFillTabId(null);
     setCharacteristics([]);
@@ -242,12 +243,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Check for a target that was set before the panel opened
     storage.getItem<ReviewTarget>('local:reviewTarget').then((target) => {
       if (target) handleTarget(target);
     });
-
-    // Watch for future targets
     const unwatch = storage.watch<ReviewTarget | null>(
       'local:reviewTarget',
       (target) => { if (target) handleTarget(target); },
@@ -256,16 +254,15 @@ export default function App() {
   }, [handleTarget]);
 
   // ------------------------------------------------------------------
-  // Generate
+  // Generate (runs in-place — does not change stage)
   // ------------------------------------------------------------------
   async function handleGenerate() {
-    if (stage.type !== 'form') return;
+    if (!currentProduct || isGenerating) return;
     if (!userNotes.trim()) {
       alert('Please describe your experience with the product first.');
       return;
     }
-    const product = stage.product;
-    setStage({ type: 'generating' });
+    setIsGenerating(true);
 
     const checked = characteristics
       .filter((c) => checkedChars.has(c.text))
@@ -274,7 +271,7 @@ export default function App() {
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'GENERATE_REVIEW',
-        product,
+        product: currentProduct,
         userNotes,
         starRating,
         checkedCharacteristics: checked,
@@ -285,17 +282,17 @@ export default function App() {
 
       setReviewTitle(response.review.title);
       setReviewBody(response.review.body);
-      setCurrentProduct(product);
-      setStage({ type: 'review', product });
     } catch (err) {
       setStage({ type: 'error', message: toMessage(err) });
+    } finally {
+      setIsGenerating(false);
     }
   }
 
   // ------------------------------------------------------------------
-  // Open the review form (navigate the current tab)
+  // Open the review form (navigate the active tab, store its id)
   // ------------------------------------------------------------------
-  async function handleFill() {
+  async function handleOpenForm() {
     if (!currentProduct) return;
     setFillStatus('Opening review form…');
     setFillTabId(null);
@@ -315,7 +312,7 @@ export default function App() {
   }
 
   // ------------------------------------------------------------------
-  // Inject filler directly into the review-form tab via executeScript
+  // Inject filler into the review-form tab via executeScript
   // ------------------------------------------------------------------
   async function handleExecuteFill() {
     if (fillTabId == null) return;
@@ -331,13 +328,13 @@ export default function App() {
 
       const result = results?.[0]?.result as { ok: boolean; filled: string[]; failed: string[] } | undefined;
       if (!result) {
-        setFillStatus('No response from page — is the review form loaded?');
+        setFillStatus('No response — is the review form fully loaded?');
       } else if (result.ok) {
         setFillStatus(`✓ Filled: ${result.filled.join(', ')}`);
       } else {
         setFillStatus(
           `⚠ Partial — could not fill: ${result.failed.join(', ')}. ` +
-          `Check DevTools console on the Amazon tab for element info.`
+          `Check DevTools console on the Amazon tab.`
         );
       }
     } catch (err) {
@@ -345,12 +342,9 @@ export default function App() {
     }
   }
 
-  function handleRegenerate() {
-    if (stage.type !== 'review' || !currentProduct) return;
-    setStage({ type: 'form', product: currentProduct });
-  }
-
   const wordCount = reviewBody.trim().split(/\s+/).filter(Boolean).length;
+  const hasReview = reviewTitle.length > 0 || reviewBody.length > 0;
+  const canPopulate = fillTabId !== null && hasReview;
 
   // ------------------------------------------------------------------
   // Render
@@ -374,11 +368,7 @@ export default function App() {
           <div className="state-idle">
             <p>
               Go to your{' '}
-              <a
-                href="https://www.amazon.ca/vine/vine-reviews"
-                target="_blank"
-                rel="noreferrer"
-              >
+              <a href="https://www.amazon.ca/vine/vine-reviews" target="_blank" rel="noreferrer">
                 Vine orders page
               </a>{' '}
               and click <strong>Write Review (AI)</strong> next to a product.
@@ -395,17 +385,17 @@ export default function App() {
           </div>
         )}
 
-        {/* ---- FORM ---- */}
+        {/* ---- FORM (unified input + generated output) ---- */}
         {stage.type === 'form' && (
           <div className="state-form">
+            {/* Product card */}
             <div className="product-card">
               <div className="product-title">{stage.product.title}</div>
               {stage.product.avgRating != null && (
                 <div className="product-meta">
                   {'★'.repeat(Math.round(stage.product.avgRating))}
                   {'☆'.repeat(5 - Math.round(stage.product.avgRating))}
-                  {' '}
-                  {stage.product.avgRating.toFixed(1)}
+                  {' '}{stage.product.avgRating.toFixed(1)}
                   {stage.product.reviewCount != null &&
                     ` · ${stage.product.reviewCount.toLocaleString()} reviews`}
                 </div>
@@ -414,15 +404,13 @@ export default function App() {
                 <details className="features-details">
                   <summary>Product features</summary>
                   <ul className="features-list">
-                    {stage.product.features.map((f, i) => (
-                      <li key={i}>{f}</li>
-                    ))}
+                    {stage.product.features.map((f, i) => <li key={i}>{f}</li>)}
                   </ul>
                 </details>
               )}
             </div>
 
-            {/* ---- CHARACTERISTICS ---- */}
+            {/* Characteristics */}
             <div className="field">
               <label>Insights from other buyers</label>
               {charsStatus === 'loading' && (
@@ -460,6 +448,7 @@ export default function App() {
               )}
             </div>
 
+            {/* Notes */}
             <div className="field">
               <label htmlFor="user-notes">Your experience with this product</label>
               <textarea
@@ -467,85 +456,83 @@ export default function App() {
                 value={userNotes}
                 onChange={(e) => setUserNotes(e.target.value)}
                 placeholder="Write anything — what you liked, what didn't work, who it's good for, quirks. The AI will structure it."
-                rows={7}
+                rows={6}
               />
             </div>
 
+            {/* Rating + Generate */}
             <div className="field">
               <label>Your rating</label>
               <StarPicker value={starRating} onChange={setStarRating} />
             </div>
 
-            <button className="btn-primary" onClick={handleGenerate}>
-              Generate Review
+            <button
+              className="btn-primary"
+              onClick={handleGenerate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'Generating…' : hasReview ? '↩ Regenerate' : 'Generate Review'}
             </button>
-          </div>
-        )}
 
-        {/* ---- GENERATING ---- */}
-        {stage.type === 'generating' && (
-          <div className="state-center">
-            <div className="spinner" />
-            <p>Generating review…</p>
-          </div>
-        )}
+            {/* Generated review — appears below when ready */}
+            {hasReview && (
+              <div className="generated-review">
+                <div className="generated-divider">
+                  <span className="word-count-badge">
+                    <span className={wordCount < 200 || wordCount > 400 ? 'word-count-warn' : ''}>
+                      {wordCount} words
+                    </span>
+                  </span>
+                </div>
 
-        {/* ---- REVIEW ---- */}
-        {stage.type === 'review' && (
-          <div className="state-review">
-            <div className="review-toolbar">
-              <span className={`word-count ${wordCount < 200 || wordCount > 400 ? 'word-count-warn' : ''}`}>
-                {wordCount} words
-              </span>
-              <button className="btn-secondary" onClick={handleRegenerate}>
-                ↩ Regenerate
-              </button>
-            </div>
+                <div className="field">
+                  <label htmlFor="review-title">Review title</label>
+                  <input
+                    id="review-title"
+                    type="text"
+                    value={reviewTitle}
+                    onChange={(e) => setReviewTitle(e.target.value)}
+                    maxLength={120}
+                  />
+                  <div className="char-count">{reviewTitle.length}/120</div>
+                </div>
 
-            <div className="field">
-              <label htmlFor="review-title">Title</label>
-              <input
-                id="review-title"
-                type="text"
-                value={reviewTitle}
-                onChange={(e) => setReviewTitle(e.target.value)}
-                maxLength={120}
-              />
-              <div className="char-count">{reviewTitle.length}/120</div>
-            </div>
-
-            <div className="field">
-              <label htmlFor="review-body">Review</label>
-              <textarea
-                id="review-body"
-                value={reviewBody}
-                onChange={(e) => setReviewBody(e.target.value)}
-                rows={12}
-              />
-            </div>
-
-            <div className="field">
-              <label>Your rating</label>
-              <StarPicker value={starRating} onChange={setStarRating} />
-            </div>
-
-            {fillTabId == null ? (
-              <button className="btn-primary" onClick={handleFill}>
-                Open Review Form →
-              </button>
-            ) : (
-              <div className="fill-ready">
-                <p className="fill-hint">
-                  Switch to the Amazon tab and wait for the form to load, then click:
-                </p>
-                <button className="btn-primary" onClick={handleExecuteFill}>
-                  ✓ Fill Form Now
-                </button>
-                <button className="btn-secondary btn-small" onClick={() => { setFillTabId(null); setFillStatus(''); }}>
-                  ← Back
-                </button>
+                <div className="field">
+                  <label htmlFor="review-body">Review body</label>
+                  <textarea
+                    id="review-body"
+                    value={reviewBody}
+                    onChange={(e) => setReviewBody(e.target.value)}
+                    rows={10}
+                  />
+                </div>
               </div>
             )}
+
+            {/* Action buttons — always visible once product is loaded */}
+            <div className="action-row">
+              <button
+                className="btn-secondary"
+                onClick={handleOpenForm}
+                disabled={!currentProduct}
+              >
+                Open Review Form →
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleExecuteFill}
+                disabled={!canPopulate}
+                title={
+                  !hasReview
+                    ? 'Generate a review first'
+                    : fillTabId === null
+                    ? 'Open the review form first'
+                    : 'Fill the Amazon review form'
+                }
+              >
+                Populate Review Form
+              </button>
+            </div>
             {fillStatus && <p className="fill-status">{fillStatus}</p>}
           </div>
         )}
