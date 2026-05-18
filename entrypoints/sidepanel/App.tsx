@@ -533,7 +533,7 @@ export default function App() {
                           }
                         />
                         <span className="char-text">{c.text}</span>
-                        <span className="char-badge">{c.count}×</span>
+                          <span className="char-badge">x{c.count}</span>
                       </label>
                       {c.sources.length > 0 && (
                         <details className="char-sources" open>
