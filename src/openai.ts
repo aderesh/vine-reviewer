@@ -162,8 +162,19 @@ function escapeNewlinesInStrings(s: string): string {
         continue;
       }
       if (ch === '"') {
-        inString = false;
-        result += ch;
+        // Determine if this quote closes the string or is stray content.
+        // A closing quote is followed (after optional whitespace) by a JSON
+        // structural character: : , } ]
+        let j = i + 1;
+        while (j < s.length && (s[j] === ' ' || s[j] === '\t' || s[j] === '\n' || s[j] === '\r')) j++;
+        const next = s[j];
+        if (next === ':' || next === ',' || next === '}' || next === ']' || j >= s.length) {
+          inString = false;
+          result += ch;
+        } else {
+          // Stray quote inside a string value — escape it
+          result += '\\"';
+        }
       } else if (ch === '\n') {
         result += '\\n';
       } else if (ch === '\r') {
@@ -178,6 +189,24 @@ function escapeNewlinesInStrings(s: string): string {
     i++;
   }
   return result;
+}
+
+// Try to parse a JSON string; on failure, attempt to salvage a partial array
+// by trimming to the last complete object (handles finish_reason: length).
+function parseJsonArray(raw: string): unknown[] {
+  const sanitized = escapeNewlinesInStrings(raw);
+  try {
+    return JSON.parse(sanitized);
+  } catch {
+    // Find the last },{  or }] pattern to close a partial array
+    const lastClose = sanitized.lastIndexOf('},');
+    if (lastClose > 1) {
+      try {
+        return JSON.parse(sanitized.slice(0, lastClose + 1) + ']');
+      } catch { /* fall through */ }
+    }
+    throw new SyntaxError(`JSON parse failed: ${sanitized.slice(0, 120)}…`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -243,7 +272,7 @@ Deduplicate similar ideas. "count" is how many of the provided reviews mention t
   const content = data.choices?.[0]?.message?.content?.trim() ?? '';
 
   const jsonStr = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-  const parsed = JSON.parse(escapeNewlinesInStrings(jsonStr)) as Array<{
+  const parsed = parseJsonArray(jsonStr) as Array<{
     text?: string; sentiment?: string; count?: number;
     sources?: Array<{ list?: string; index?: number; sentence?: string }>;
   }>;

@@ -448,11 +448,18 @@ export default function App() {
                           <span className="char-badge">{c.count}×</span>
                         </label>
                         {c.sources.length > 0 && (
-                          <details className="char-sources">
+                          <details className="char-sources" open>
                             <summary>{c.sources.length} excerpt{c.sources.length > 1 ? 's' : ''}</summary>
                             {c.sources.map((s, i) => (
                               <div key={i} className="char-source">
                                 <span className="char-source-text">"{s.excerpt}"</span>
+                                <button
+                                  className="char-source-add"
+                                  title="Add to your notes"
+                                  onClick={() => setUserNotes((prev) =>
+                                    prev ? `${prev}\n${s.excerpt}` : s.excerpt
+                                  )}
+                                >+</button>
                                 {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="char-source-link">↗</a>}
                               </div>
                             ))}
