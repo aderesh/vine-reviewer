@@ -3,6 +3,9 @@ import { storage } from 'wxt/storage';
 import type { ProductInfo, GeneratedReview, ReviewTarget, ReviewCharacteristic } from '../../src/types';
 import { parseProductHtml, parseReviewTexts } from '../../src/scraper';
 import { extractCharacteristics, generateReviewQuestions } from '../../src/openai';
+import { REVIEW_TARGET_KEY } from '../../src/storage';
+
+const DRAFT_KEY = 'local:draft';
 
 // ---------------------------------------------------------------------------
 // Form-fill injector — runs inside the Amazon review page via executeScript.
@@ -193,7 +196,7 @@ export default function App() {
     if (!currentProduct) return;
     if (draftTimer.current) clearTimeout(draftTimer.current);
     draftTimer.current = setTimeout(() => {
-      storage.setItem<DraftState>('local:draft', {
+      storage.setItem<DraftState>(DRAFT_KEY, {
         asin: currentProduct.asin,
         userNotes,
         starRating,
@@ -256,7 +259,7 @@ export default function App() {
   // Side-effect: listen for a review target being set in storage
   // ------------------------------------------------------------------
   const handleTarget = useCallback(async (target: ReviewTarget) => {
-    await storage.removeItem('local:reviewTarget');
+    await storage.removeItem(REVIEW_TARGET_KEY);
     setUserNotes('');
     setStarRating(5);
     setReviewTitle('');
@@ -288,7 +291,7 @@ export default function App() {
       setCurrentProduct(product);
 
       // Restore draft if one exists for this ASIN
-      const draft = await storage.getItem<DraftState>('local:draft');
+      const draft = await storage.getItem<DraftState>(DRAFT_KEY);
       if (draft?.asin === target.asin) {
         setUserNotes(draft.userNotes);
         setStarRating(draft.starRating);
@@ -320,11 +323,11 @@ export default function App() {
   }, [loadCharacteristics, loadQuestions]);
 
   useEffect(() => {
-    storage.getItem<ReviewTarget>('local:reviewTarget').then((target) => {
+    storage.getItem<ReviewTarget>(REVIEW_TARGET_KEY).then((target) => {
       if (target) handleTarget(target);
     });
     const unwatch = storage.watch<ReviewTarget | null>(
-      'local:reviewTarget',
+      REVIEW_TARGET_KEY,
       (target) => { if (target) handleTarget(target); },
     );
     return unwatch;
@@ -347,7 +350,7 @@ export default function App() {
     setQuestionsError('');
     setGenerateError('');
     if (currentProduct) {
-      await storage.removeItem('local:draft');
+      await storage.removeItem(DRAFT_KEY);
     }
   }
 

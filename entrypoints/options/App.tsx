@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { storage } from 'wxt/storage';
-import { DEFAULT_SETTINGS } from '../../src/storage';
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from '../../src/storage';
 import type { Settings } from '../../src/types';
 
 const PRESETS: Record<string, { endpoint: string; model: string }> = {
@@ -25,7 +25,7 @@ export default function Options() {
   const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
-    storage.getItem<Settings>('local:settings').then((saved) => {
+    storage.getItem<Settings>(SETTINGS_KEY).then((saved) => {
       if (saved) setSettings({ ...DEFAULT_SETTINGS, ...saved });
     });
   }, []);
@@ -36,7 +36,7 @@ export default function Options() {
 
   async function handleSave() {
     try {
-      await storage.setItem('local:settings', settings);
+      await storage.setItem(SETTINGS_KEY, settings);
       setStatus({ text: 'Settings saved.', ok: true });
     } catch {
       setStatus({ text: 'Failed to save settings.', ok: false });
@@ -54,7 +54,7 @@ export default function Options() {
     };
     setSettings(next);
     try {
-      await storage.setItem('local:settings', next);
+      await storage.setItem(SETTINGS_KEY, next);
       setStatus({ text: 'Prompts reset and saved.', ok: true });
     } catch {
       setStatus({ text: 'Reset applied but failed to save.', ok: false });

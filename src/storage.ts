@@ -3,7 +3,7 @@ import type { ReviewTarget, Settings } from './types';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_REVIEW_PROMPT, DEFAULT_QUESTIONS_PROMPT } from './prompts';
 
 // Storage keys (wxt/storage uses "scope:key" format)
-const REVIEW_TARGET_KEY = 'local:reviewTarget';
+export const REVIEW_TARGET_KEY = 'local:reviewTarget';
 export const SETTINGS_KEY = 'local:settings';
 
 export const DEFAULT_SETTINGS: Settings = {
